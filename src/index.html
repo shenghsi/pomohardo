@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomohardo</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Navigation Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="timer">Timer</button>
+            <button class="tab" data-tab="stats">Stats</button>
+            <button class="settings-btn" id="settingsBtn">⚙</button>
+        </div>
+
+        <!-- Timer Tab -->
+        <div class="tab-content active" id="timerTab">
+            <div class="timer-container">
+                <svg class="circular-timer" viewBox="0 0 200 200">
+                    <circle class="timer-bg" cx="100" cy="100" r="90" />
+                    <circle class="timer-progress-bg" cx="100" cy="100" r="90" />
+                    <circle class="timer-progress" cx="100" cy="100" r="90" id="progressCircle" />
+                </svg>
+                <div class="timer-content">
+                    <div class="phase-label" id="phaseLabel">Pomodoro</div>
+                    <div class="time-display" id="timeDisplay">25:00</div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="control-btn" id="pauseBtn" title="Pause">
+                    <span id="pauseIcon">⏸</span>
+                </button>
+                <button class="control-btn" id="skipBtn" title="Skip">⏭</button>
+            </div>
+
+            <div class="info">
+                <div class="session-count">Session: <span id="sessionCount">0</span></div>
+                <div class="break-debt" id="breakDebt">Break debt: 0s</div>
+            </div>
+        </div>
+
+        <!-- Stats Tab -->
+        <div class="tab-content" id="statsTab">
+            <div class="stats-container">
+                <h2>Statistics</h2>
+                <div class="stat-item">
+                    <span>Sessions Today:</span>
+                    <span id="sessionsToday">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Emergency Skips Today:</span>
+                    <span id="emergencySkipsToday">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Break Debt:</span>
+                    <span id="breakDebtStat">0 minutes</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="close-btn" id="closeSettings">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label for="workDuration">Work Duration (minutes):</label>
+                    <input type="number" id="workDuration" min="1" max="60" value="25">
+                </div>
+                <div class="setting-group">
+                    <label for="breakDuration">Break Duration (minutes):</label>
+                    <input type="number" id="breakDuration" min="1" max="30" value="5">
+                </div>
+                <div class="setting-group">
+                    <label for="longBreakDuration">Long Break Duration (minutes):</label>
+                    <input type="number" id="longBreakDuration" min="1" max="60" value="15">
+                </div>
+                <div class="setting-group">
+                    <label for="sessionsBeforeLongBreak">Sessions Before Long Break:</label>
+                    <input type="number" id="sessionsBeforeLongBreak" min="2" max="10" value="4">
+                </div>
+                <div class="setting-group">
+                    <label for="emergencySkipsPerDay">Emergency Skips Per Day:</label>
+                    <input type="number" id="emergencySkipsPerDay" min="0" max="10" value="3">
+                </div>
+                <div class="setting-group">
+                    <label for="breakDebtCap">Break Debt Cap (minutes):</label>
+                    <input type="number" id="breakDebtCap" min="10" max="120" value="60">
+                </div>
+                <button class="save-btn" id="saveSettings">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Break Overlay (shown during breaks) -->
+    <div class="break-overlay hidden" id="breakOverlay">
+        <div class="break-content">
+            <div class="break-timer">
+                <svg class="circular-timer" viewBox="0 0 200 200">
+                    <circle class="timer-bg" cx="100" cy="100" r="90" />
+                    <circle class="timer-progress-bg" cx="100" cy="100" r="90" />
+                    <circle class="timer-progress" cx="100" cy="100" r="90" id="breakProgressCircle" />
+                </svg>
+                <div class="timer-content">
+                    <div class="phase-label" id="breakPhaseLabel">Break</div>
+                    <div class="time-display" id="breakTimeDisplay">5:00</div>
+                </div>
+            </div>
+            <p class="break-message">Take a walk! Step away from your computer.</p>
+            <button class="emergency-btn" id="emergencySkipBtn">Emergency Skip</button>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
+
