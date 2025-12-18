@@ -514,10 +514,13 @@ function updateUI(overrideState) {
     // Update pause button based on display state
     if (displayState.status === 'Running') {
         pauseIcon.src = 'pause.svg';
+        pauseBtn.title = 'Pause';
     } else if (displayState.status === 'Paused') {
         pauseIcon.src = 'play.svg';
+        pauseBtn.title = 'Resume';
     } else {
         pauseIcon.src = 'play.svg';
+        pauseBtn.title = 'Start';
     }
 
     // Enable/disable skip button based on display state

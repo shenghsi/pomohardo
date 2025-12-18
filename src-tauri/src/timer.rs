@@ -209,7 +209,16 @@ impl TimerEngine {
 
         let now = Utc::now();
         let elapsed = now.signed_duration_since(start).to_std().unwrap_or(Duration::ZERO);
-        let elapsed = elapsed.checked_sub(self.paused_duration).unwrap_or(Duration::ZERO);
+
+        let mut total_paused = self.paused_duration;
+        if self.status == TimerStatus::Paused {
+            if let Some(pause_time) = self.pause_time {
+                let current_pause = now.signed_duration_since(pause_time).to_std().unwrap_or(Duration::ZERO);
+                total_paused += current_pause;
+            }
+        }
+
+        let elapsed = elapsed.checked_sub(total_paused).unwrap_or(Duration::ZERO);
 
         let phase_duration = Duration::from_secs(self.get_phase_duration() as u64);
         let remaining = phase_duration.checked_sub(elapsed).unwrap_or(Duration::ZERO);
@@ -318,3 +327,45 @@ fn parse_daily_limit_state(state: &DailyLimitState) -> (Option<NaiveDate>, Optio
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::thread;
+    use std::time::Duration;
+
+    #[test]
+    fn test_pause_resume_timer_calculation() {
+        // Setup
+        let config = Config::default();
+        let mut timer = TimerEngine::new(config);
+
+        // Start timer
+        timer.start();
+        
+        // Wait 2 seconds (simulated or real)
+        thread::sleep(Duration::from_secs(2));
+        
+        // Pause
+        timer.pause();
+        let remaining_at_pause = timer.get_remaining_seconds();
+        
+        // Wait 2 seconds while paused
+        thread::sleep(Duration::from_secs(2));
+        
+        // Check remaining seconds should be same as when paused (approx)
+        let remaining_after_wait = timer.get_remaining_seconds();
+        
+        // There might be slight diff due to execution time, but it shouldn't be ~2s diff
+        // With the bug, remaining_after_wait would be ~ remaining_at_pause - 2
+        // With the fix, remaining_after_wait should be == remaining_at_pause
+        
+        assert_eq!(remaining_after_wait, remaining_at_pause, "Timer should not count down while paused");
+        
+        // Resume
+        timer.resume();
+        thread::sleep(Duration::from_secs(1));
+        
+        let remaining_after_resume = timer.get_remaining_seconds();
+        assert!(remaining_after_resume < remaining_after_wait, "Timer should resume counting");
+    }
+}

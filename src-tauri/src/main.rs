@@ -9,7 +9,7 @@ mod tray;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder, RunEvent, WindowEvent};
+use tauri::{Emitter, Manager, Listener, WebviewUrl, WebviewWindowBuilder, RunEvent, WindowEvent};
 
 #[derive(Clone)]
 struct AppState {
@@ -238,12 +238,28 @@ fn main() {
             };
 
             // Create system tray icon
-            let tray = tray::create_tray(app.handle())
+            let (tray, pause_resume_item) = tray::create_tray(app.handle())
                 .expect("Failed to create system tray");
             
             let app_handle = app.handle().clone();
             let timer_clone = app_state.timer.clone();
             let tray_clone = tray.clone();
+            let pause_resume_item_clone = pause_resume_item.clone();
+            
+            // Listen for tray update requests (e.g. from menu clicks)
+            let tray_for_event = tray.clone();
+            let item_for_event = pause_resume_item.clone();
+            let timer_for_event = app_state.timer.clone();
+            app.listen("refresh-tray-icon", move |_| {
+                let t = tray_for_event.clone();
+                let i = item_for_event.clone();
+                let tm = timer_for_event.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = tray::update_tray_icon(&t, &tm, &i).await {
+                        eprintln!("Failed to refresh tray icon: {}", e);
+                    }
+                });
+            });
 
             // Background task to check timer state and trigger transitions
             std::thread::spawn(move || {
@@ -265,7 +281,7 @@ fn main() {
 
                     // Update tray icon with current progress
                     rt.block_on(async {
-                        if let Err(e) = tray::update_tray_icon(&tray_clone, &timer_clone).await {
+                        if let Err(e) = tray::update_tray_icon(&tray_clone, &timer_clone, &pause_resume_item_clone).await {
                             eprintln!("Failed to update tray icon: {}", e);
                         }
                     });
