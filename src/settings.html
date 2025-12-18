@@ -148,13 +148,66 @@
         .setting-group.text-input input {
             text-align: left;
         }
+
+        /* Toggle switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #444;
+            transition: 0.3s;
+            border-radius: 24px;
+            border: 1px solid #555;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 2px;
+            bottom: 2px;
+            background-color: #fff;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .toggle-switch input:checked+.toggle-slider {
+            background-color: #fca311;
+            border-color: #fca311;
+        }
+
+        .toggle-switch input:checked+.toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        .toggle-switch input:disabled+.toggle-slider {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 
 <body>
 
     <!-- TIMER CONFIGURATION SECTION -->
-    <h3>Timer Configuration</h3>
+    <h3>TIMER CONFIGURATION</h3>
     <div class="section-divider"></div>
 
     <div class="setting-group">
@@ -221,7 +274,22 @@
         <label for="emergencySkipsPerDay">Daily Emergency Skips</label>
         <div class="input-wrapper">
             <input type="number" id="emergencySkipsPerDay" min="0" max="10">
-            <span class="hint hidden" id="emergencySkipsLockedNote">Locked after the first pomodoro session</span>
+            <span class="hint hidden" id="emergencySkipsLockedNote">Locked after the first pomodoro session of the
+                day</span>
+        </div>
+    </div>
+
+    <!-- APPLICATION SETTINGS SECTION -->
+    <h3>APPLICATION SETTINGS</h3>
+    <div class="section-divider"></div>
+
+    <div class="setting-group">
+        <label for="autoStart">Autostart minimized on login</label>
+        <div class="input-wrapper" style="width: auto;">
+            <label class="toggle-switch">
+                <input type="checkbox" id="autoStart">
+                <span class="toggle-slider"></span>
+            </label>
         </div>
     </div>
 
@@ -274,6 +342,7 @@
                 document.getElementById('emergencyHoldSeconds').value = config.emergency_hold_seconds || 4;
                 document.getElementById('emergencyConfirmWord').value = config.emergency_confirm_word || 'SKIPBREAK';
                 document.getElementById('emergencyConfirmTimeout').value = config.emergency_confirm_timeout_seconds || 15;
+                document.getElementById('autoStart').checked = config.auto_start || false;
             } catch (error) {
                 console.error('Failed to load config:', error);
             }
@@ -304,6 +373,7 @@
                 emergency_hold_seconds: parseInt(document.getElementById('emergencyHoldSeconds').value) || 4,
                 emergency_confirm_word: document.getElementById('emergencyConfirmWord').value.trim().toUpperCase() || 'SKIPBREAK',
                 emergency_confirm_timeout_seconds: parseInt(document.getElementById('emergencyConfirmTimeout').value) || 15,
+                auto_start: document.getElementById('autoStart').checked,
             };
 
             try {

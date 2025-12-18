@@ -5,7 +5,7 @@ use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, Emitter, WebviewUrl, WebviewWindowBuilder,
+    AppHandle, Manager, Emitter,
 };
 use tokio::sync::Mutex;
 
@@ -211,23 +211,8 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
                             });
                 }
                 "preferences" => {
-                    if let Some(window) = app.get_webview_window("settings") {
-                        let _ = window.set_focus();
-                    } else {
-                        // Create settings window
-                        let _ = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
-                            .title("Preferences")
-                            .inner_size(450.0, 600.0)
-                            .resizable(false)
-                            .decorations(true)
-                            .center()
-                            .build()
-                            .and_then(|w| {
-                                let _ = w.show();
-                                let _ = w.set_focus();
-                                Ok(w)
-                            })
-                            .map_err(|e| eprintln!("Failed to create settings window: {}", e));
+                    if let Err(e) = crate::open_settings_window(app) {
+                        eprintln!("Failed to open settings window: {}", e);
                     }
                 }
                 "quit" => {

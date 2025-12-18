@@ -9,7 +9,8 @@ mod tray;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
-use tauri::{Emitter, Manager, Listener, WebviewUrl, WebviewWindowBuilder, RunEvent, WindowEvent};
+use tauri::{Emitter, Manager, Listener, WebviewUrl, WebviewWindowBuilder, RunEvent, WindowEvent, AppHandle};
+use tauri_plugin_autostart::MacosLauncher;
 
 #[derive(Clone)]
 struct AppState {
@@ -66,6 +67,7 @@ async fn get_config(state: tauri::State<'_, AppState>) -> Result<config::Config,
 
 #[tauri::command]
 async fn update_config(
+    app: AppHandle,
     state: tauri::State<'_, AppState>,
     mut new_config: config::Config,
 ) -> Result<(), String> {
@@ -87,6 +89,17 @@ async fn update_config(
 
     {
         let mut config = state.config.lock().await;
+        
+        // Handle auto-start changes
+        if config.auto_start != new_config.auto_start {
+            use tauri_plugin_autostart::ManagerExt;
+            if new_config.auto_start {
+                let _ = app.autolaunch().enable();
+            } else {
+                let _ = app.autolaunch().disable();
+            }
+        }
+
         *config = new_config.clone();
         config.save().map_err(|e| e.to_string())?;
     }
@@ -185,34 +198,33 @@ async fn hide_breakshield(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-async fn show_settings(app: tauri::AppHandle, url: String) -> Result<(), String> {
-    // If settings window already exists, just focus it
+pub const SETTINGS_WINDOW_WIDTH: f64 = 450.0;
+pub const SETTINGS_WINDOW_HEIGHT: f64 = 700.0;
+
+pub fn open_settings_window(app: &tauri::AppHandle) -> Result<(), String> {
+    // If settings window already exists, close it and recreate with new size
     if let Some(w) = app.get_webview_window("settings") {
-        let _ = w.set_focus();
-        return Ok(());
+        let _ = w.close();
     }
 
-    let webview_url = match tauri::Url::parse(&url) {
-        Ok(u) => WebviewUrl::External(u),
-        Err(_) => WebviewUrl::App("settings.html".into()),
-    };
-
     // Settings window - sized to fit content without scrolling
-    // 9 settings * ~56px each + header + padding = ~620px height
-    let w = WebviewWindowBuilder::new(&app, "settings", webview_url)
+    WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
         .title("Preferences")
-        .inner_size(450.0, 600.0)
+        .inner_size(SETTINGS_WINDOW_WIDTH, SETTINGS_WINDOW_HEIGHT)
         .resizable(false)
         .decorations(true)
         .center()
         .build()
-        .map_err(|e| e.to_string())?;
+        .map(|w| {
+            let _ = w.show();
+            let _ = w.set_focus();
+        })
+        .map_err(|e| e.to_string())
+}
 
-    let _ = w.show();
-    let _ = w.set_focus();
-
-    Ok(())
+#[tauri::command]
+async fn show_settings(app: tauri::AppHandle, _url: String) -> Result<(), String> {
+    open_settings_window(&app)
 }
 
 fn main() {
@@ -227,7 +239,21 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec!["--minimized"]),
+        ))
         .setup(|app| {
+            // Check command line args for --minimized
+            let args: Vec<String> = std::env::args().collect();
+            let start_minimized = args.contains(&"--minimized".to_string());
+
+            if !start_minimized {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
             let config = config::Config::load().unwrap_or_default();
             let timer = timer::TimerEngine::new(config.clone());
 

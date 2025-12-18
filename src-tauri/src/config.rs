@@ -23,6 +23,8 @@ pub struct Config {
     pub emergency_confirm_word: String,
     #[serde(default = "default_emergency_confirm_timeout_seconds")]
     pub emergency_confirm_timeout_seconds: u32,
+    #[serde(default)]
+    pub auto_start: bool,
 }
 
 fn default_emergency_hold_seconds() -> u32 {
@@ -49,6 +51,7 @@ impl Default for Config {
             emergency_hold_seconds: 4,
             emergency_confirm_word: "SKIPBREAK".to_string(),
             emergency_confirm_timeout_seconds: 15,
+            auto_start: false,
         }
     }
 }
