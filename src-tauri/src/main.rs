@@ -217,6 +217,15 @@ async fn show_settings(app: tauri::AppHandle, url: String) -> Result<(), String>
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // When a second instance tries to start, bring the existing window to focus
+            if let Some(window) = app.get_webview_window("main") {
+                // Ensure window is visible, unminimized, and focused
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let config = config::Config::load().unwrap_or_default();
