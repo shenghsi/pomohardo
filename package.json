@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "serve": "http-server src -p 5173 -c-1",
-    "dev": "tauri dev",
-    "build": "tauri build",
+    "dev": "npm run sync-version && tauri dev",
+    "build": "npm run sync-version && tauri build",
     "tauri": "tauri",
-    "generate-icons": "node generate-icons-simple.js"
+    "generate-icons": "node generate-icons-simple.js",
+    "sync-version": "node scripts/sync-version.js",
+    "version": "npm run sync-version"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
