@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pomohardo</title>
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div class="app">
         <!-- Navigation Tabs -->
@@ -64,61 +66,9 @@
         </div>
     </div>
 
-    <!-- Settings Modal -->
-    <div class="modal" id="settingsModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Settings</h2>
-                <button class="close-btn" id="closeSettings">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="setting-group">
-                    <label for="workDuration">Work Duration (minutes):</label>
-                    <input type="number" id="workDuration" min="1" max="60" value="25">
-                </div>
-                <div class="setting-group">
-                    <label for="breakDuration">Break Duration (minutes):</label>
-                    <input type="number" id="breakDuration" min="1" max="30" value="5">
-                </div>
-                <div class="setting-group">
-                    <label for="longBreakDuration">Long Break Duration (minutes):</label>
-                    <input type="number" id="longBreakDuration" min="1" max="60" value="15">
-                </div>
-                <div class="setting-group">
-                    <label for="sessionsBeforeLongBreak">Sessions Before Long Break:</label>
-                    <input type="number" id="sessionsBeforeLongBreak" min="2" max="10" value="4">
-                </div>
-                <div class="setting-group">
-                    <label for="emergencySkipsPerDay">Emergency Skips Per Day:</label>
-                    <input type="number" id="emergencySkipsPerDay" min="0" max="10" value="2">
-                    <p class="hint hidden" id="emergencySkipsLockedNote">
-                        Locked for today after the first work session ends.
-                    </p>
-                </div>
-                <div class="setting-group">
-                    <label for="breakDebtCap">Break Debt Cap (minutes):</label>
-                    <input type="number" id="breakDebtCap" min="10" max="120" value="60">
-                </div>
-                <div class="setting-group">
-                    <label for="emergencyHoldSeconds">Emergency Skip Hold Duration (seconds):</label>
-                    <input type="number" id="emergencyHoldSeconds" min="1" max="10" value="4">
-                </div>
-                <div class="setting-group">
-                    <label for="emergencyConfirmWord">Emergency Skip Confirm Word:</label>
-                    <input type="text" id="emergencyConfirmWord" value="SKIP" maxlength="10">
-                </div>
-                <div class="setting-group">
-                    <label for="emergencyConfirmTimeout">Emergency Skip Confirm Timeout (seconds):</label>
-                    <input type="number" id="emergencyConfirmTimeout" min="5" max="120" value="15">
-                </div>
-                <button class="save-btn" id="saveSettings">Save</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Break screen is created dynamically in breakshield mode only (see main.js) -->
 
     <script src="main.js"></script>
 </body>
-</html>
 
+</html>

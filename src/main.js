@@ -11,11 +11,10 @@ let frozenWorkState = null; // Stores last work state to freeze main window duri
 
 // DOM Elements (will be initialized after DOM is ready)
 let tabs, tabContents, timeDisplay, phaseLabel, sessionCount, breakDebt;
-let progressCircle, pauseBtn, pauseIcon, skipBtn, settingsBtn;
-let settingsModal, closeSettings, saveSettings, breakOverlay;
+let progressCircle, pauseBtn, pauseIcon, skipBtn, settingsBtn, breakOverlay;
 let breakTimeDisplay, breakPhaseLabel, breakTimeUpContainer;
 let emergencySkipContainer, holdProgressBar, holdProgressText;
-let confirmWordContainer, confirmWordInput, confirmSkipBtn;
+let confirmWordContainer, confirmWordInput, confirmSkipBtn, confirmInstruction;
 let emergencyLimitMsg;
 let emergencyHoldInstruction;
 let holdProgressContainer;
@@ -33,9 +32,6 @@ function initDOMElements() {
     pauseIcon = document.getElementById('pauseIcon');
     skipBtn = document.getElementById('skipBtn');
     settingsBtn = document.getElementById('settingsBtn');
-    settingsModal = document.getElementById('settingsModal');
-    closeSettings = document.getElementById('closeSettings');
-    saveSettings = document.getElementById('saveSettings');
 }
 
 // Create break screen DOM (only called in breakshield mode)
@@ -47,7 +43,7 @@ function createBreakScreen() {
                     <div class="phase-label" id="breakPhaseLabel">Break</div>
                     <div class="time-display" id="breakTimeDisplay">5:00</div>
                 </div>
-                <p class="break-message">Take a walk!<br>Step away from your computer.</p>
+                <p class="break-message">Take a break!<br>Step away from your computer.</p>
                 <p class="emergency-limit-msg hidden" id="emergencyLimitMsg">
                     Emergency skip limit reached for today.
                 </p>
@@ -62,7 +58,7 @@ function createBreakScreen() {
                 </div>
             </div>
             <div class="confirm-word-container hidden" id="confirmWordContainer">
-                <p class="confirm-instruction">Type <strong>SKIP</strong> to confirm:</p>
+                <p class="confirm-instruction" id="confirmInstruction">Type <strong>SKIPBREAK</strong> to confirm:</p>
                 <input type="text" id="confirmWordInput" class="confirm-word-input" autocomplete="off" />
                 <button class="confirm-btn" id="confirmSkipBtn">Confirm</button>
             </div>
@@ -73,7 +69,7 @@ function createBreakScreen() {
         </div>
     `;
     document.body.insertAdjacentHTML('beforeend', html);
-    
+
     // Now get references to the created elements
     breakOverlay = document.getElementById('breakOverlay');
     breakTimeDisplay = document.getElementById('breakTimeDisplay');
@@ -88,6 +84,7 @@ function createBreakScreen() {
     confirmWordContainer = document.getElementById('confirmWordContainer');
     confirmWordInput = document.getElementById('confirmWordInput');
     confirmSkipBtn = document.getElementById('confirmSkipBtn');
+    confirmInstruction = document.getElementById('confirmInstruction');
 }
 
 // Tab switching
@@ -99,31 +96,22 @@ function setupEventListeners() {
             tabContents.forEach(c => c.classList.remove('active'));
             tab.classList.add('active');
             document.getElementById(tabName + 'Tab').classList.add('active');
-            
+
             if (tabName === 'stats') {
                 updateStats();
             }
         });
     });
 
-    // Settings modal
+    // Settings window (opens as popup)
     settingsBtn.addEventListener('click', () => {
         openSettings();
-    });
-
-    closeSettings.addEventListener('click', () => {
-        settingsModal.classList.remove('active');
-    });
-
-    saveSettings.addEventListener('click', async () => {
-        await saveConfig();
-        settingsModal.classList.remove('active');
     });
 
     // Control buttons
     pauseBtn.addEventListener('click', async () => {
         if (!timerState) return;
-        
+
         if (timerState.status === 'Running') {
             await invoke('pause_timer');
             pauseIcon.src = 'play.svg';
@@ -134,13 +122,13 @@ function setupEventListeners() {
             await invoke('start_timer');
             pauseIcon.src = 'pause.svg';
         }
-        
+
         await updateTimerState();
     });
 
     skipBtn.addEventListener('click', async () => {
         if (!timerState || timerState.phase !== 'Work') return;
-        
+
         try {
             await invoke('skip_work');
             await updateTimerState();
@@ -162,7 +150,7 @@ function setupEmergencySkip() {
     let isHolding = false;
     let isArmed = false;  // true once hold is complete and confirm word input is shown
     let confirmTimeout = null;  // timeout for confirm word input
-    
+
     // Show emergency skip UI when break overlay is shown
     const showEmergencySkipUI = () => {
         // If we're already at the confirm step, don't reset the UI.
@@ -177,7 +165,7 @@ function setupEmergencySkip() {
         holdProgressBar.style.width = '0%';
         holdProgressText.textContent = '0%';
     };
-    
+
     // Hide emergency skip UI when break overlay is hidden
     const hideEmergencySkipUI = () => {
         emergencySkipContainer.classList.add('hidden');
@@ -193,7 +181,7 @@ function setupEmergencySkip() {
         isHolding = false;
         isArmed = false;
     };
-    
+
     // Reset to hold state (called when confirm timeout expires)
     const resetToHoldState = () => {
         if (confirmTimeout) {
@@ -213,7 +201,7 @@ function setupEmergencySkip() {
         hideEmergencySkipUI();
         if (emergencyLimitMsg) emergencyLimitMsg.classList.remove('hidden');
     };
-    
+
     // Check if emergency skip UI should be shown
     const checkAndShowEmergencySkip = async () => {
         try {
@@ -225,7 +213,7 @@ function setupEmergencySkip() {
 
             const currentState = await invoke('get_timer_state');
             const currentConfig = await invoke('get_config');
-            
+
             // Only show if limit not reached
             if (currentState.emergency_skips_today >= currentConfig.emergency_skips_per_day) {
                 showEmergencyLimitMsg();
@@ -236,7 +224,7 @@ function setupEmergencySkip() {
             console.error('Failed to check emergency skip:', error);
         }
     };
-    
+
     // When X11 grabs are active, the webview may not receive key events.
     // So we poll the backend for the chord state (Ctrl+Alt+Shift+E) and implement hold logic here.
     let chordPoll = null;
@@ -271,8 +259,13 @@ function setupEmergencySkip() {
                         if (holdProgressContainer) holdProgressContainer.classList.add('hidden');
                         confirmWordContainer.classList.remove('hidden');
 
+                        // Update the confirm instruction with the configured word
+                        if (confirmInstruction) {
+                            confirmInstruction.innerHTML = `Type <strong>${currentConfig.emergency_confirm_word || 'SKIPBREAK'}</strong> to confirm:`;
+                        }
+
                         // Temporarily allow typing by releasing grabs
-                        try { await invoke('deactivate_input_blocking'); } catch (_) {}
+                        try { await invoke('deactivate_input_blocking'); } catch (_) { }
 
                         confirmWordInput.value = '';
                         setTimeout(() => confirmWordInput.focus(), 100);
@@ -282,7 +275,7 @@ function setupEmergencySkip() {
                         confirmTimeout = setTimeout(async () => {
                             resetToHoldState();
                             // Re-enable blocking if still in break
-                            try { await invoke('activate_input_blocking'); } catch (_) {}
+                            try { await invoke('activate_input_blocking'); } catch (_) { }
                             startChordPolling();
                         }, timeoutSeconds * 1000);
                     }
@@ -304,56 +297,56 @@ function setupEmergencySkip() {
         }
         lastPressedAt = null;
     };
-    
+
     // Prevent global keyboard handlers from interfering with the input
     confirmWordInput.addEventListener('keydown', (e) => {
         e.stopPropagation();
     });
-    
+
     confirmWordInput.addEventListener('keyup', (e) => {
         e.stopPropagation();
     });
-    
+
     // Confirm word input handler
     confirmSkipBtn.addEventListener('click', async () => {
         await handleEmergencySkipConfirm();
     });
-    
+
     confirmWordInput.addEventListener('keypress', async (e) => {
         e.stopPropagation();
         if (e.key === 'Enter') {
             await handleEmergencySkipConfirm();
         }
     });
-    
+
     // Handle emergency skip confirmation
     const handleEmergencySkipConfirm = async () => {
         try {
             const currentConfig = await invoke('get_config');
             const inputWord = confirmWordInput.value.trim().toUpperCase();
             const expectedWord = currentConfig.emergency_confirm_word.toUpperCase();
-            
+
             if (inputWord !== expectedWord) {
                 alert(`Incorrect confirmation word. Expected: ${expectedWord}`);
                 confirmWordInput.value = '';
                 confirmWordInput.focus();
                 return;
             }
-            
+
             // Check limit again before proceeding
             const currentState = await invoke('get_timer_state');
             if (currentState.emergency_skips_today >= currentConfig.emergency_skips_per_day) {
                 showEmergencyLimitMsg();
                 return;
             }
-            
+
             const approved = await invoke('request_emergency_skip');
             if (!approved) {
                 showEmergencyLimitMsg();
             } else {
                 await updateTimerState();
             }
-            
+
             // Clear timeout if confirmation succeeds
             if (confirmTimeout) {
                 clearTimeout(confirmTimeout);
@@ -363,10 +356,10 @@ function setupEmergencySkip() {
             // Re-enable blocking if we are still in break and skip was denied.
             // If skip succeeded, updateTimerState() will hide overlay and deactivate blocking anyway.
             if (!approved) {
-                try { await invoke('activate_input_blocking'); } catch (_) {}
+                try { await invoke('activate_input_blocking'); } catch (_) { }
                 startChordPolling();
             }
-            
+
             // Reset UI
             confirmWordInput.value = '';
             isArmed = false;
@@ -398,7 +391,7 @@ function setupEmergencySkip() {
 async function updateTimerState() {
     try {
         timerState = await invoke('get_timer_state');
-        
+
         const inBreak = (timerState.phase === 'Break' || timerState.phase === 'LongBreak') && timerState.status === 'Running';
         const breakTimeUp = (timerState.phase === 'Break' || timerState.phase === 'LongBreak') && timerState.status === 'Paused' && timerState.remaining_seconds === 0;
 
@@ -417,15 +410,15 @@ async function updateTimerState() {
                     break_debt_seconds: timerState.break_debt_seconds
                 };
             }
-            
+
             // Clear frozen state when work resumes
             if (!inBreak && !breakTimeUp && frozenWorkState) {
                 frozenWorkState = null;
             }
-            
+
             // Update UI with frozen state during breaks, real state otherwise
             updateUI((inBreak || breakTimeUp) ? frozenWorkState : null);
-            
+
             // Manage breakshield window open/close
             if ((inBreak || breakTimeUp) && !breakshieldOpen) {
                 const base = window.location.href.replace(/#.*$/, '');
@@ -440,7 +433,7 @@ async function updateTimerState() {
 
         // Breakshield window: update UI and show/hide break overlay
         updateUI();
-        
+
         if (timerState.phase === 'Break' || timerState.phase === 'LongBreak') {
             if (timerState.status === 'Running' || breakTimeUp) {
                 if (breakOverlay.classList.contains('hidden')) {
@@ -465,26 +458,26 @@ async function updateTimerState() {
 function updateUI(overrideState) {
     const displayState = overrideState || timerState;
     if (!displayState) return;
-    
+
     // Main window elements: use displayState (may be frozen work state)
     const minutes = Math.floor(displayState.remaining_seconds / 60);
     const seconds = displayState.remaining_seconds % 60;
     const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
     timeDisplay.textContent = timeStr;
-    
+
     // Phase label for main window
-    let mainPhaseName = displayState.phase === 'Work' ? 'Pomodoro' : 
-                        displayState.phase === 'Break' ? 'Break' : 'Long Break';
+    let mainPhaseName = displayState.phase === 'Work' ? 'Pomodoro' :
+        displayState.phase === 'Break' ? 'Break' : 'Long Break';
     phaseLabel.textContent = mainPhaseName;
-    
+
     // Session count from display state
     sessionCount.textContent = displayState.session_count;
-    
+
     // Break debt from display state
     const debtMinutes = Math.floor(displayState.break_debt_seconds / 60);
     const debtSeconds = displayState.break_debt_seconds % 60;
     breakDebt.textContent = `Break debt: ${debtMinutes}m ${debtSeconds}s`;
-    
+
     // Progress circle for main window
     const mainRemainingRatio = displayState.total_seconds > 0
         ? (displayState.remaining_seconds / displayState.total_seconds)
@@ -492,13 +485,13 @@ function updateUI(overrideState) {
     const circumference = 2 * Math.PI * 98;
     const mainOffset = circumference * (1 - mainRemainingRatio);
     progressCircle.style.strokeDashoffset = mainOffset;
-    
+
     // Breakshield elements: always use real timerState for break countdown
     if (IS_BREAKSHIELD && timerState) {
-        const breakTimeUp = (timerState.phase === 'Break' || timerState.phase === 'LongBreak') && 
-                            timerState.status === 'Paused' && 
-                            timerState.remaining_seconds === 0;
-        
+        const breakTimeUp = (timerState.phase === 'Break' || timerState.phase === 'LongBreak') &&
+            timerState.status === 'Paused' &&
+            timerState.remaining_seconds === 0;
+
         if (breakTimeUp) {
             // Hide time display, show break time up message
             breakTimeDisplay.classList.add('hidden');
@@ -512,12 +505,12 @@ function updateUI(overrideState) {
             const breakTimeStr = `${breakMinutes}:${breakSeconds.toString().padStart(2, '0')}`;
             breakTimeDisplay.textContent = breakTimeStr;
         }
-        
-        let breakPhaseName = timerState.phase === 'Work' ? 'Pomodoro' : 
-                             timerState.phase === 'Break' ? 'Break' : 'Long Break';
+
+        let breakPhaseName = timerState.phase === 'Work' ? 'Pomodoro' :
+            timerState.phase === 'Break' ? 'Break' : 'Long Break';
         breakPhaseLabel.textContent = breakPhaseName;
     }
-    
+
     // Update pause button based on display state
     if (displayState.status === 'Running') {
         pauseIcon.src = 'pause.svg';
@@ -526,7 +519,7 @@ function updateUI(overrideState) {
     } else {
         pauseIcon.src = 'play.svg';
     }
-    
+
     // Enable/disable skip button based on display state
     skipBtn.disabled = displayState.phase !== 'Work';
     skipBtn.style.opacity = displayState.phase === 'Work' ? '1' : '0.5';
@@ -540,7 +533,7 @@ async function showBreakOverlay() {
 
     document.body.classList.add('break-active');
     breakOverlay.classList.remove('hidden');
-    
+
     // Make window fullscreen and always-on-top (and focused) BEFORE grabbing input.
     // If we grab first, the webview may not receive the emergency chord.
     try {
@@ -557,9 +550,9 @@ async function showBreakOverlay() {
     }
 
     // Check if break time is up
-    const breakTimeUp = (timerState.phase === 'Break' || timerState.phase === 'LongBreak') && 
-                       timerState.status === 'Paused' && 
-                       timerState.remaining_seconds === 0;
+    const breakTimeUp = (timerState.phase === 'Break' || timerState.phase === 'LongBreak') &&
+        timerState.status === 'Paused' &&
+        timerState.remaining_seconds === 0;
 
     // Only activate input blocking if break is still running
     if (!breakTimeUp) {
@@ -568,7 +561,7 @@ async function showBreakOverlay() {
         } catch (error) {
             console.error('Failed to activate input blocking:', error);
         }
-        
+
         // Show emergency skip UI if limit not reached
         if (window.checkAndShowEmergencySkip) {
             await window.checkAndShowEmergencySkip();
@@ -580,11 +573,11 @@ async function showBreakOverlay() {
         } catch (error) {
             console.error('Failed to deactivate input blocking:', error);
         }
-        
+
         // Set up one-time listener for any user interaction
         setupBreakCompleteListener();
     }
-    
+
     // Request notification permission if not granted
     if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
@@ -599,25 +592,25 @@ async function hideBreakOverlay() {
 
     breakOverlay.classList.add('hidden');
     document.body.classList.remove('break-active');
-    
+
     // Reset break time up flag
     breakTimeUpHandled = false;
-    
+
     // Hide emergency skip UI
     if (window.hideEmergencySkipUI) {
         window.hideEmergencySkipUI();
     }
-    
+
     // Remove break complete listener if it exists
     removeBreakCompleteListener();
-    
+
     // Deactivate input blocking
     try {
         await invoke('deactivate_input_blocking');
     } catch (error) {
         console.error('Failed to deactivate input blocking:', error);
     }
-    
+
     // Restore window to normal
     try {
         const { getCurrentWindow } = window.__TAURI__.window;
@@ -636,14 +629,14 @@ async function handleBreakTimeUp() {
     // Only run once per break completion
     if (breakTimeUpHandled) return;
     breakTimeUpHandled = true;
-    
+
     console.log('Break time is up - deactivating input blocking and setting up listeners');
-    
+
     // Hide emergency skip UI
     if (window.hideEmergencySkipUI) {
         window.hideEmergencySkipUI();
     }
-    
+
     // Deactivate input blocking to allow user interaction
     try {
         await invoke('deactivate_input_blocking');
@@ -651,7 +644,7 @@ async function handleBreakTimeUp() {
     } catch (error) {
         console.error('Failed to deactivate input blocking:', error);
     }
-    
+
     // Set up one-time listener for any user interaction
     setupBreakCompleteListener();
 }
@@ -662,9 +655,9 @@ let breakCompleteHandlers = null;
 function setupBreakCompleteListener() {
     // Remove any existing listeners first
     removeBreakCompleteListener();
-    
+
     console.log('Setting up break complete listeners');
-    
+
     const handleInteraction = async () => {
         console.log('User interaction detected, completing break...');
         try {
@@ -674,27 +667,27 @@ function setupBreakCompleteListener() {
             console.error('Failed to complete break:', error);
         }
     };
-    
+
     // Listen for keyboard and mouse events
     const keyHandler = (e) => {
         console.log('Key pressed:', e.key);
         handleInteraction();
     };
-    
+
     const mouseHandler = (e) => {
         console.log('Mouse moved');
         handleInteraction();
     };
-    
+
     const clickHandler = (e) => {
         console.log('Mouse clicked');
         handleInteraction();
     };
-    
+
     document.addEventListener('keydown', keyHandler, { once: true });
     document.addEventListener('mousemove', mouseHandler, { once: true });
     document.addEventListener('click', clickHandler, { once: true });
-    
+
     // Store handlers so we can remove them later if needed
     breakCompleteHandlers = { keyHandler, mouseHandler, clickHandler };
 }
@@ -708,69 +701,26 @@ function removeBreakCompleteListener() {
     }
 }
 
-// Open settings
+// Open settings popup window
 async function openSettings() {
     try {
-        config = await invoke('get_config');
-        const state = await invoke('get_timer_state');
-        document.getElementById('workDuration').value = config.work_duration_minutes;
-        document.getElementById('breakDuration').value = config.break_duration_minutes;
-        document.getElementById('longBreakDuration').value = config.long_break_duration_minutes;
-        document.getElementById('sessionsBeforeLongBreak').value = config.sessions_before_long_break;
-        const emergencySkipsEl = document.getElementById('emergencySkipsPerDay');
-        const lockedNote = document.getElementById('emergencySkipsLockedNote');
-
-        // If locked, show the effective locked limit and disable editing.
-        emergencySkipsEl.value = state.emergency_skips_limit ?? config.emergency_skips_per_day;
-        if (state.emergency_limit_locked) {
-            emergencySkipsEl.disabled = true;
-            lockedNote.classList.remove('hidden');
-        } else {
-            emergencySkipsEl.disabled = false;
-            lockedNote.classList.add('hidden');
-        }
-
-        document.getElementById('breakDebtCap').value = config.break_debt_cap_minutes;
-        document.getElementById('emergencyHoldSeconds').value = config.emergency_hold_seconds || 4;
-        document.getElementById('emergencyConfirmWord').value = config.emergency_confirm_word || 'SKIP';
-        document.getElementById('emergencyConfirmTimeout').value = config.emergency_confirm_timeout_seconds || 15;
-        settingsModal.classList.add('active');
+        // Build URL for settings.html
+        // In dev mode, use the same base URL; in production, it will be an app:// URL
+        const base = window.location.href.replace(/index\.html.*$/, '').replace(/#.*$/, '');
+        const settingsUrl = `${base}settings.html`;
+        await invoke('show_settings', { url: settingsUrl });
     } catch (error) {
-        console.error('Failed to load config:', error);
-    }
-}
-
-// Save config
-async function saveConfig() {
-    const newConfig = {
-        work_duration_minutes: parseInt(document.getElementById('workDuration').value),
-        break_duration_minutes: parseInt(document.getElementById('breakDuration').value),
-        long_break_duration_minutes: parseInt(document.getElementById('longBreakDuration').value),
-        sessions_before_long_break: parseInt(document.getElementById('sessionsBeforeLongBreak').value),
-        emergency_skips_per_day: parseInt(document.getElementById('emergencySkipsPerDay').value),
-        break_debt_cap_minutes: parseInt(document.getElementById('breakDebtCap').value),
-        emergency_hold_seconds: parseInt(document.getElementById('emergencyHoldSeconds').value),
-        emergency_confirm_word: document.getElementById('emergencyConfirmWord').value.trim().toUpperCase() || 'SKIP',
-        emergency_confirm_timeout_seconds: parseInt(document.getElementById('emergencyConfirmTimeout').value) || 15,
-    };
-    
-    try {
-        await invoke('update_config', { newConfig });
-        config = newConfig;
-        alert('Settings saved!');
-    } catch (error) {
-        console.error('Failed to save config:', error);
-        alert('Failed to save settings');
+        console.error('Failed to open settings:', error);
     }
 }
 
 // Update stats
 async function updateStats() {
     if (!timerState) return;
-    
+
     document.getElementById('sessionsToday').textContent = timerState.session_count;
     document.getElementById('emergencySkipsToday').textContent = timerState.emergency_skips_today;
-    
+
     const debtMinutes = Math.floor(timerState.break_debt_seconds / 60);
     document.getElementById('breakDebtStat').textContent = `${debtMinutes} minutes`;
 }
@@ -779,13 +729,13 @@ async function updateStats() {
 async function init() {
     // Listen for Tauri events
     const { listen } = window.__TAURI__.event;
-    
+
     // Listen for phase changes
     listen('phase-changed', (event) => {
         console.log('Phase changed to:', event.payload);
         updateTimerState();
     });
-    
+
     // Listen for break started
     listen('break-started', async (event) => {
         console.log('Break started:', event.payload);
@@ -805,19 +755,19 @@ async function init() {
                 }
             });
         }
-        
+
         // Activate break overlay
         await updateTimerState();
     });
-    
+
     // Auto-start the timer when app opens (main window only)
     if (!IS_BREAKSHIELD) {
         await invoke('start_timer');
         pauseIcon.src = 'pause.svg';
     }
-    
+
     await updateTimerState();
-    
+
     // Update timer every second
     updateInterval = setInterval(async () => {
         await updateTimerState();

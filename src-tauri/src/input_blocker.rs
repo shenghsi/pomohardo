@@ -13,6 +13,7 @@ pub struct InputBlocker {
 #[cfg(target_os = "linux")]
 struct X11GrabState {
     display: *mut x11::xlib::Display,
+    #[allow(dead_code)]
     root: x11::xlib::Window,
 }
 
@@ -81,6 +82,7 @@ impl InputBlocker {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_active(&self) -> bool {
         self.active.load(Ordering::SeqCst)
     }

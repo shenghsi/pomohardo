@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background: #1e1e1e;
+            color: #ffffff;
+            padding: 24px;
+            font-size: 14px;
+            /* Increased from 13px */
+            user-select: none;
+            cursor: default;
+        }
+
+        h3 {
+            font-size: 12px;
+            /* Increased from 11px */
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #888;
+            margin-top: 24px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        h3:first-of-type {
+            margin-top: 0;
+        }
+
+        .section-divider {
+            height: 1px;
+            background: #333;
+            margin-bottom: 16px;
+        }
+
+        .setting-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            /* Slightly more space */
+        }
+
+        .setting-group label {
+            color: #ddd;
+            font-size: 14px;
+            /* Increased from 13px */
+        }
+
+        .input-wrapper {
+            position: relative;
+            width: 180px;
+        }
+
+        .setting-group input {
+            width: 100%;
+            font-family: inherit;
+            /* Ensure it uses the body font */
+            padding: 8px 10px;
+            /* Increased padding */
+            background: #2d2d2d;
+            border: 1px solid #444;
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 14px;
+            /* Increased from 13px */
+            text-align: left;
+            /* Left align */
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .setting-group input:focus {
+            outline: none;
+            border-color: #fca311;
+            box-shadow: 0 0 0 2px rgba(252, 163, 17, 0.2);
+        }
+
+        .setting-group input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #252525;
+            border-color: #333;
+        }
+
+        .hint {
+            margin-top: 4px;
+            font-size: 11px;
+            color: #fca311;
+            /* Accenting warning/info */
+            text-align: left;
+            display: block;
+            width: 100%;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Unit suffix styling helper (optional visual enhancement) */
+        .unit {
+            position: absolute;
+            right: 25px;
+            /* Adjust based on input padding */
+            top: 50%;
+            transform: translateY(-50%);
+            color: #666;
+            pointer-events: none;
+            font-size: 12px;
+        }
+
+        /* Saved indicator */
+        .save-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 6px 12px;
+            background: #333;
+            border: 1px solid #444;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #fff;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            transform: translateY(10px);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .save-indicator.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Flex alignment specifically for the skip confirm row to handle text input */
+        .setting-group.text-input input {
+            text-align: left;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- TIMER CONFIGURATION SECTION -->
+    <h3>Timer Configuration</h3>
+    <div class="section-divider"></div>
+
+    <div class="setting-group">
+        <label for="workDuration">Pomodoro Duration (minutes)</label>
+        <div class="input-wrapper">
+            <input type="number" id="workDuration" min="1" max="60">
+        </div>
+    </div>
+
+    <div class="setting-group">
+        <label for="breakDuration">Break Duration (minutes)</label>
+        <div class="input-wrapper">
+            <input type="number" id="breakDuration" min="1" max="30">
+        </div>
+    </div>
+
+    <div class="setting-group">
+        <label for="longBreakDuration">Long Break Duration (minutes)</label>
+        <div class="input-wrapper">
+            <input type="number" id="longBreakDuration" min="1" max="60">
+        </div>
+    </div>
+
+    <div class="setting-group">
+        <label for="sessionsBeforeLongBreak">Sessions Before Long Break</label>
+        <div class="input-wrapper">
+            <input type="number" id="sessionsBeforeLongBreak" min="2" max="10">
+        </div>
+    </div>
+
+    <!-- EMERGENCY & LIMITS SECTION -->
+    <h3>Emergency & Limits</h3>
+    <div class="section-divider"></div>
+
+    <div class="setting-group">
+        <label for="breakDebtCap">Break Debt Cap (minutes)</label>
+        <div class="input-wrapper">
+            <input type="number" id="breakDebtCap" min="10" max="120">
+        </div>
+    </div>
+
+    <div class="setting-group">
+        <label for="emergencyHoldSeconds">Skip Hold Duration (seconds)</label>
+        <div class="input-wrapper">
+            <input type="number" id="emergencyHoldSeconds" min="1" max="10">
+        </div>
+    </div>
+
+    <div class="setting-group text-input">
+        <label for="emergencyConfirmWord">Skip Confirm Word</label>
+        <div class="input-wrapper">
+            <input type="text" id="emergencyConfirmWord" maxlength="10">
+        </div>
+    </div>
+
+    <div class="setting-group">
+        <label for="emergencyConfirmTimeout">Skip Confirm Timeout (seconds)</label>
+        <div class="input-wrapper">
+            <input type="number" id="emergencyConfirmTimeout" min="5" max="120">
+        </div>
+    </div>
+
+    <div class="setting-group">
+        <label for="emergencySkipsPerDay">Daily Emergency Skips</label>
+        <div class="input-wrapper">
+            <input type="number" id="emergencySkipsPerDay" min="0" max="10">
+            <span class="hint hidden" id="emergencySkipsLockedNote">Locked after the first pomodoro session</span>
+        </div>
+    </div>
+
+    <div class="save-indicator" id="saveIndicator">
+        <span>✓</span> Saved
+    </div>
+
+    <script>
+        let invoke;
+        let config = null;
+
+        // Wait for Tauri API
+        function waitForTauri() {
+            if (window.__TAURI__ && window.__TAURI__.core) {
+                invoke = window.__TAURI__.core.invoke;
+                init();
+            } else {
+                setTimeout(waitForTauri, 50);
+            }
+        }
+
+        async function init() {
+            await loadConfig();
+            setupAutoSave();
+        }
+
+        async function loadConfig() {
+            try {
+                config = await invoke('get_config');
+                const state = await invoke('get_timer_state');
+
+                document.getElementById('workDuration').value = config.work_duration_minutes;
+                document.getElementById('breakDuration').value = config.break_duration_minutes;
+                document.getElementById('longBreakDuration').value = config.long_break_duration_minutes;
+                document.getElementById('sessionsBeforeLongBreak').value = config.sessions_before_long_break;
+
+                const emergencySkipsEl = document.getElementById('emergencySkipsPerDay');
+                const lockedNote = document.getElementById('emergencySkipsLockedNote');
+
+                emergencySkipsEl.value = state.emergency_skips_limit ?? config.emergency_skips_per_day;
+                if (state.emergency_limit_locked) {
+                    emergencySkipsEl.disabled = true;
+                    lockedNote.classList.remove('hidden');
+                } else {
+                    emergencySkipsEl.disabled = false;
+                    lockedNote.classList.add('hidden');
+                }
+
+                document.getElementById('breakDebtCap').value = config.break_debt_cap_minutes;
+                document.getElementById('emergencyHoldSeconds').value = config.emergency_hold_seconds || 4;
+                document.getElementById('emergencyConfirmWord').value = config.emergency_confirm_word || 'SKIPBREAK';
+                document.getElementById('emergencyConfirmTimeout').value = config.emergency_confirm_timeout_seconds || 15;
+            } catch (error) {
+                console.error('Failed to load config:', error);
+            }
+        }
+
+        function setupAutoSave() {
+            // Get all input elements
+            const inputs = document.querySelectorAll('input');
+
+            inputs.forEach(input => {
+                // Save immediately on change (like macOS preferences)
+                input.addEventListener('change', saveConfig);
+                // Also save on input for text fields for immediate effect
+                if (input.type === 'text') {
+                    input.addEventListener('input', saveConfig);
+                }
+            });
+        }
+
+        async function saveConfig() {
+            const newConfig = {
+                work_duration_minutes: parseInt(document.getElementById('workDuration').value) || 25,
+                break_duration_minutes: parseInt(document.getElementById('breakDuration').value) || 5,
+                long_break_duration_minutes: parseInt(document.getElementById('longBreakDuration').value) || 15,
+                sessions_before_long_break: parseInt(document.getElementById('sessionsBeforeLongBreak').value) || 4,
+                emergency_skips_per_day: parseInt(document.getElementById('emergencySkipsPerDay').value) || 2,
+                break_debt_cap_minutes: parseInt(document.getElementById('breakDebtCap').value) || 60,
+                emergency_hold_seconds: parseInt(document.getElementById('emergencyHoldSeconds').value) || 4,
+                emergency_confirm_word: document.getElementById('emergencyConfirmWord').value.trim().toUpperCase() || 'SKIPBREAK',
+                emergency_confirm_timeout_seconds: parseInt(document.getElementById('emergencyConfirmTimeout').value) || 15,
+            };
+
+            try {
+                await invoke('update_config', { newConfig });
+                config = newConfig;
+                showSaveIndicator();
+            } catch (error) {
+                console.error('Failed to save config:', error);
+            }
+        }
+
+        function showSaveIndicator() {
+            const indicator = document.getElementById('saveIndicator');
+            indicator.classList.add('visible');
+            setTimeout(() => {
+                indicator.classList.remove('visible');
+            }, 1000);
+        }
+
+        // Start
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', waitForTauri);
+        } else {
+            waitForTauri();
+        }
+    </script>
+</body>
+
+</html>

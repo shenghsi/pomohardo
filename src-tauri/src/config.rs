@@ -30,7 +30,7 @@ fn default_emergency_hold_seconds() -> u32 {
 }
 
 fn default_emergency_confirm_word() -> String {
-    "SKIP".to_string()
+    "SKIPBREAK".to_string()
 }
 
 fn default_emergency_confirm_timeout_seconds() -> u32 {
@@ -47,7 +47,7 @@ impl Default for Config {
             emergency_skips_per_day: 2,
             break_debt_cap_minutes: 60,
             emergency_hold_seconds: 4,
-            emergency_confirm_word: "SKIP".to_string(),
+            emergency_confirm_word: "SKIPBREAK".to_string(),
             emergency_confirm_timeout_seconds: 15,
         }
     }

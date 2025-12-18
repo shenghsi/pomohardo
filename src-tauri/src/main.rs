@@ -185,6 +185,36 @@ async fn hide_breakshield(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn show_settings(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    // If settings window already exists, just focus it
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.set_focus();
+        return Ok(());
+    }
+
+    let webview_url = match tauri::Url::parse(&url) {
+        Ok(u) => WebviewUrl::External(u),
+        Err(_) => WebviewUrl::App("settings.html".into()),
+    };
+
+    // Settings window - sized to fit content without scrolling
+    // 9 settings * ~56px each + header + padding = ~620px height
+    let w = WebviewWindowBuilder::new(&app, "settings", webview_url)
+        .title("Preferences")
+        .inner_size(450.0, 600.0)
+        .resizable(false)
+        .decorations(true)
+        .center()
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let _ = w.show();
+    let _ = w.set_focus();
+
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
@@ -252,7 +282,7 @@ fn main() {
                             };
                             
                             app_handle
-                                .emit("break-started", format!("{} time! Take a walk.", break_type))
+                                .emit("break-started", format!("{} time! Take a break.", break_type))
                                 .ok();
                         }
                     }
@@ -277,6 +307,7 @@ fn main() {
             emergency_chord_pressed,
             show_breakshield,
             hide_breakshield,
+            show_settings,
             complete_break,
         ])
         .build(tauri::generate_context!())
