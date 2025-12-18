@@ -4,6 +4,11 @@
     box-sizing: border-box;
 }
 
+html, body {
+    width: 100%;
+    height: 100%;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     background: #2b2b2b;
@@ -18,12 +23,40 @@ body {
     flex-direction: column;
 }
 
+/* ============================================
+   BREAKSHIELD MODE
+   Breakshield is a separate fullscreen window that only shows the break screen.
+   The main .app is hidden; break-overlay is the only visible content.
+   ============================================ */
+body.breakshield {
+    background: transparent !important;
+}
+
+body.breakshield .app,
+body.breakshield .tabs,
+body.breakshield #timerTab,
+body.breakshield #statsTab,
+body.breakshield #settingsModal {
+    display: none !important;
+}
+
+body.breakshield .hold-progress {
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+body.breakshield .confirm-btn {
+    border-color: rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.85);
+}
+
 /* Tabs */
 .tabs {
     display: flex;
     background: #1e1e1e;
     border-bottom: 1px solid #3a3a3a;
     position: relative;
+    height: 52px;
+    z-index: 3000; /* normal mode stacking */
 }
 
 .tab {
@@ -63,6 +96,12 @@ body {
     color: #ffffff;
 }
 
+/* Break mode: keep the menu bar visible but disable interaction */
+body.break-active .tabs {
+    pointer-events: none;
+    opacity: 0.9;
+}
+
 /* Tab Content */
 .tab-content {
     display: none;
@@ -74,15 +113,26 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+}
+
+/* Move Timer tab content upward a bit */
+#timerTab.tab-content.active {
+    padding-top: 10px;
+    position: relative;
 }
 
 /* Timer Container */
 .timer-container {
-    position: relative;
-    width: 300px;
-    height: 300px;
-    margin: 20px 0;
+    /* Pin ring position so it doesn't jump between modes */
+    position: absolute;
+    /* Side margin = (450 - 320)/2 = 65px; match top margin */
+    top: 65px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 320px;
+    height: 320px;
+    margin: 0;
 }
 
 .circular-timer {
@@ -94,20 +144,21 @@ body {
 .timer-bg {
     fill: none;
     stroke: #3a3a3a;
-    stroke-width: 8;
+    stroke-width: 4;
 }
 
 .timer-progress-bg {
     fill: none;
-    stroke: #4a4a4a;
-    stroke-width: 8;
+    stroke: #8a8a8a;
+    stroke-width: 4;
 }
 
 .timer-progress {
     fill: none;
-    stroke: #ffffff;
-    stroke-width: 8;
-    stroke-dasharray: 565.48;
+    stroke: #e74c3c;
+    stroke-width: 4;
+    /* 2*pi*98 = 615.752... */
+    stroke-dasharray: 615.75;
     stroke-dashoffset: 0;
     transition: stroke-dashoffset 1s linear;
     stroke-linecap: round;
@@ -131,13 +182,17 @@ body {
     font-size: 48px;
     font-weight: 300;
     letter-spacing: 2px;
+    min-width: 120px;
+    text-align: center;
+    display: inline-block;
 }
 
 /* Controls */
 .controls {
     display: flex;
-    gap: 20px;
-    margin: 30px 0;
+    gap: 40px;
+    /* Push controls below the pinned ring (top 65 + ring 320 + spacing) */
+    margin: 410px 0 10px;
 }
 
 .control-btn {
@@ -162,6 +217,17 @@ body {
 
 .control-btn:active {
     transform: scale(0.95);
+}
+
+.control-btn img {
+    width: 48px;
+    height: 48px;
+    filter: brightness(0) invert(1); /* Make SVG white */
+    display: block;
+}
+
+#skipBtn img {
+    transform: translateX(1px); /* Fine-tune horizontal centering */
 }
 
 /* Info */
@@ -261,6 +327,12 @@ body {
     font-size: 14px;
 }
 
+.hint {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #888;
+}
+
 .setting-group input {
     width: 100%;
     padding: 10px;
@@ -287,43 +359,200 @@ body {
     background: #e8605a;
 }
 
-/* Break Overlay */
+/* Break Screen (only shown in breakshield window, never in main window) */
 .break-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
+    /* Break screen content in breakshield mode */
+    display: flex;
     width: 100%;
     height: 100%;
-    background: #1e1e1e;
-    z-index: 2000;
-    display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
+    background: rgba(0, 0, 0, 0.75);
+    text-align: center;
+    position: static;
+    z-index: auto;
+    max-width: none;
 }
 
 .break-overlay.hidden {
-    display: none;
-}
-
-.break-content {
-    text-align: center;
+    display: none !important;
 }
 
 .break-timer {
-    position: relative;
-    width: 300px;
-    height: 300px;
-    margin: 0 auto 30px;
+    position: absolute;
+    top: 30%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 320px;
+    height: 20%;
+    margin: 0;
+    background-color: #000;
+    text-align: center;
 }
 
-.break-message {
+.break-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    background-color: #000;
+    padding: 20px 40px;
+    border-radius: 10px;
+}
+
+.break-content .phase-label {
+    font-size: 20px;
+    color: #aaa;
+}
+
+.break-content .time-display {
+    min-width: 140px;
+    width: 140px;
+    font-size: 72px;
+    text-align: center;
+    overflow: hidden;
+    white-space: nowrap;
+    color: #fff;
+}
+
+.break-time-up-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 320px;
+    height: 10%;
+    transform: translateX(-50%);
+    margin: 0;
+    text-align: center;
+    background-color: #000;
+    padding-top: 10px;
+}
+
+.break-time-up-container .break-time-up-msg {
+    font-size: 24px;
+    color: #fff;
+    text-align: center;
+    line-height: 1.5;
+    margin-top: 20px;
+}
+
+.break-timer .break-message {
+    /* margin-top: 40px; */
+    padding: 15px 10px;
     font-size: 20px;
     color: #888;
-    margin: 30px 0;
+    text-align: center;
 }
 
-.emergency-btn {
-    padding: 12px 24px;
+.break-timer .emergency-limit-msg {
+    margin-top: 18px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #f07167;
+}
+
+.emergency-skip-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 320px;
+    height: 6%;
+    transform: translateX(-50%);
+    margin: 0;
+    text-align: center;
+    background-color: #000;
+}
+
+.emergency-instruction {
+    font-size: 16px;
+    color: #888;
+    text-align: center;
+    padding: 2px 10px;
+    line-height: 1.8;
+}
+
+.emergency-instruction kbd {
+    background: #3a3a3a;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #fff;
+}
+
+.hold-progress {
+    position: relative;
+    width: 320px;
+    height: 20px;
+    margin: 0 auto 20px;
+    background: #3a3a3a;
+    border-radius: 15px;
+    overflow: hidden;
+    display: block;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.hold-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: #f07167;
+    transition: width 0.1s linear;
+    border-radius: 15px;
+}
+
+.hold-progress span {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #fff;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.confirm-word-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 320px;
+    height: 6%;
+    transform: translateX(-50%);
+    margin: 0;
+    text-align: center;
+    background-color: #000;
+    padding-top: 10px;
+}
+
+.confirm-instruction {
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 10px;
+}
+
+.confirm-word-input {
+    padding: 10px;
+    background: #3a3a3a;
+    border: 1px solid #555;
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 16px;
+    text-align: center;
+    width: 200px;
+    margin-bottom: 10px;
+    position: relative;
+    z-index: 9999;
+}
+
+.confirm-word-input:focus {
+    outline: none;
+    border-color: #f07167;
+}
+
+
+.confirm-btn {
+    padding: 10px 20px;
     background: #555;
     border: 1px solid #777;
     border-radius: 6px;
@@ -333,7 +562,7 @@ body {
     transition: all 0.3s;
 }
 
-.emergency-btn:hover {
+.confirm-btn:hover {
     background: #666;
     color: #ffffff;
 }

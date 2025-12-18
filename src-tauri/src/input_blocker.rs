@@ -6,16 +6,41 @@ use std::sync::Arc;
 
 pub struct InputBlocker {
     active: Arc<AtomicBool>,
+    #[cfg(target_os = "linux")]
+    x11: Option<X11GrabState>,
 }
+
+#[cfg(target_os = "linux")]
+struct X11GrabState {
+    display: *mut x11::xlib::Display,
+    root: x11::xlib::Window,
+}
+
+// We only access X11GrabState behind a mutex in AppState, and we never share the raw Display*
+// across threads without synchronization. Marking it Send/Sync is safe for this usage.
+#[cfg(target_os = "linux")]
+unsafe impl Send for X11GrabState {}
+#[cfg(target_os = "linux")]
+unsafe impl Sync for X11GrabState {}
+
+#[cfg(target_os = "linux")]
+unsafe impl Send for InputBlocker {}
+#[cfg(target_os = "linux")]
+unsafe impl Sync for InputBlocker {}
 
 impl InputBlocker {
     pub fn new() -> Self {
         Self {
             active: Arc::new(AtomicBool::new(false)),
+            #[cfg(target_os = "linux")]
+            x11: None,
         }
     }
 
-    pub fn activate(&self) -> Result<(), String> {
+    pub fn activate(&mut self) -> Result<(), String> {
+        if self.active.load(Ordering::SeqCst) {
+            return Ok(());
+        }
         self.active.store(true, Ordering::SeqCst);
         
         #[cfg(target_os = "windows")]
@@ -34,7 +59,10 @@ impl InputBlocker {
         }
     }
 
-    pub fn deactivate(&self) -> Result<(), String> {
+    pub fn deactivate(&mut self) -> Result<(), String> {
+        if !self.active.load(Ordering::SeqCst) {
+            return Ok(());
+        }
         self.active.store(false, Ordering::SeqCst);
         
         #[cfg(target_os = "windows")]
@@ -87,7 +115,7 @@ impl InputBlocker {
     }
 
     #[cfg(target_os = "linux")]
-    fn activate_linux(&self) -> Result<(), String> {
+    fn activate_linux(&mut self) -> Result<(), String> {
         // Linux X11 implementation using XGrabKeyboard/XGrabPointer
         // Wayland: overlay-only, no reliable global input blocking
         
@@ -100,15 +128,125 @@ impl InputBlocker {
             return Ok(());
         }
         
-        // X11 grab implementation (placeholder)
-        println!("Linux X11 input blocking activated (placeholder)");
+        unsafe {
+            let display = x11::xlib::XOpenDisplay(std::ptr::null());
+            if display.is_null() {
+                return Err("XOpenDisplay failed; cannot enable X11 input blocking".to_string());
+            }
+
+            let root = x11::xlib::XDefaultRootWindow(display);
+
+            // Grab keyboard. owner_events=true so input still goes to the focused window (our fullscreen app).
+            let kb = x11::xlib::XGrabKeyboard(
+                display,
+                root,
+                x11::xlib::True,
+                x11::xlib::GrabModeAsync,
+                x11::xlib::GrabModeAsync,
+                x11::xlib::CurrentTime,
+            );
+            if kb != x11::xlib::GrabSuccess {
+                x11::xlib::XCloseDisplay(display);
+                return Err(format!("XGrabKeyboard failed with code {}", kb));
+            }
+
+            // Grab pointer (mouse). owner_events=true so clicks/moves still go to focused window.
+            let event_mask = (x11::xlib::ButtonPressMask
+                | x11::xlib::ButtonReleaseMask
+                | x11::xlib::PointerMotionMask) as u32;
+
+            let ptr = x11::xlib::XGrabPointer(
+                display,
+                root,
+                x11::xlib::True,
+                event_mask,
+                x11::xlib::GrabModeAsync,
+                x11::xlib::GrabModeAsync,
+                0,
+                0,
+                x11::xlib::CurrentTime,
+            );
+
+            if ptr != x11::xlib::GrabSuccess {
+                // Undo keyboard grab
+                x11::xlib::XUngrabKeyboard(display, x11::xlib::CurrentTime);
+                x11::xlib::XCloseDisplay(display);
+                return Err(format!("XGrabPointer failed with code {}", ptr));
+            }
+
+            x11::xlib::XFlush(display);
+            self.x11 = Some(X11GrabState { display, root });
+        }
+
         Ok(())
     }
 
     #[cfg(target_os = "linux")]
-    fn deactivate_linux(&self) -> Result<(), String> {
-        println!("Linux input blocking deactivated (placeholder)");
+    fn deactivate_linux(&mut self) -> Result<(), String> {
+        let Some(state) = self.x11.take() else {
+            return Ok(());
+        };
+
+        unsafe {
+            x11::xlib::XUngrabPointer(state.display, x11::xlib::CurrentTime);
+            x11::xlib::XUngrabKeyboard(state.display, x11::xlib::CurrentTime);
+            x11::xlib::XFlush(state.display);
+            x11::xlib::XCloseDisplay(state.display);
+        }
         Ok(())
+    }
+
+    /// Linux/X11 only: check whether Ctrl+Alt+Shift+E is currently pressed.
+    /// This is used because X11 grabs can prevent the webview from receiving key events.
+    #[cfg(target_os = "linux")]
+    pub fn emergency_chord_pressed(&mut self) -> Result<bool, String> {
+        let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
+        if session_type == "wayland" {
+            return Ok(false);
+        }
+
+        // If we don't already have a display, open a temporary one for querying.
+        let (display, close_after) = match self.x11 {
+            Some(ref s) => (s.display, false),
+            None => unsafe {
+                let d = x11::xlib::XOpenDisplay(std::ptr::null());
+                if d.is_null() {
+                    return Err("XOpenDisplay failed; cannot query emergency chord".to_string());
+                }
+                (d, true)
+            },
+        };
+
+        unsafe {
+            // Query keymap
+            let mut keys: [i8; 32] = [0; 32];
+            x11::xlib::XQueryKeymap(display, keys.as_mut_ptr());
+
+            let pressed = |kc: u8| -> bool {
+                let idx = (kc / 8) as usize;
+                let bit = kc % 8;
+                (keys[idx] & (1 << bit)) != 0
+            };
+
+            let kc_ctrl_l = x11::xlib::XKeysymToKeycode(display, x11::keysym::XK_Control_L as u64);
+            let kc_ctrl_r = x11::xlib::XKeysymToKeycode(display, x11::keysym::XK_Control_R as u64);
+            let kc_alt_l = x11::xlib::XKeysymToKeycode(display, x11::keysym::XK_Alt_L as u64);
+            let kc_alt_r = x11::xlib::XKeysymToKeycode(display, x11::keysym::XK_Alt_R as u64);
+            let kc_shift_l = x11::xlib::XKeysymToKeycode(display, x11::keysym::XK_Shift_L as u64);
+            let kc_shift_r = x11::xlib::XKeysymToKeycode(display, x11::keysym::XK_Shift_R as u64);
+            let kc_e = x11::xlib::XKeysymToKeycode(display, x11::keysym::XK_E as u64);
+
+            let ctrl = pressed(kc_ctrl_l) || pressed(kc_ctrl_r);
+            let alt = pressed(kc_alt_l) || pressed(kc_alt_r);
+            let shift = pressed(kc_shift_l) || pressed(kc_shift_r);
+            let e = pressed(kc_e);
+
+            if close_after {
+                x11::xlib::XCloseDisplay(display);
+            }
+
+            Ok(ctrl && alt && shift && e)
+        }
     }
 }
 

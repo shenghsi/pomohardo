@@ -7,7 +7,8 @@
     "serve": "http-server src -p 5173 -c-1",
     "dev": "tauri dev",
     "build": "tauri build",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "generate-icons": "node generate-icons-simple.js"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
@@ -15,6 +16,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "sharp": "^0.33.0"
   }
 }

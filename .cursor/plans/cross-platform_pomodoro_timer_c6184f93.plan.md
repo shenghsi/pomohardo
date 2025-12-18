@@ -4,44 +4,44 @@ overview: Build a cross-platform pomodoro timer using Tauri (Rust + web frontend
 todos:
   - id: setup-tauri
     content: Initialize Tauri project structure with Rust backend and web frontend
-    status: pending
+    status: completed
   - id: timer-engine
     content: Implement timer state machine and countdown logic in Rust
-    status: pending
+    status: completed
     dependencies:
       - setup-tauri
   - id: config-system
     content: Create configuration management system with TOML file storage
-    status: pending
+    status: completed
     dependencies:
       - setup-tauri
   - id: input-blocking
     content: Implement break overlay + platform-specific input blocking (Windows/macOS/X11) with Wayland fallback behavior
-    status: pending
+    status: completed
     dependencies:
       - setup-tauri
   - id: skip-logic
     content: Implement emergency skip + break-debt accounting + emergency-skip limit enforcement
-    status: pending
+    status: completed
     dependencies:
       - timer-engine
       - input-blocking
   - id: frontend-ui
     content: Build frontend UI with timer display, settings panel, and controls
-    status: pending
+    status: completed
     dependencies:
       - timer-engine
       - config-system
   - id: tauri-commands
     content: Expose Rust functions as Tauri commands for frontend communication
-    status: pending
+    status: completed
     dependencies:
       - timer-engine
       - config-system
       - input-blocking
   - id: notifications
     content: Add notifications for phase transitions and break period warnings
-    status: pending
+    status: completed
     dependencies:
       - frontend-ui
   - id: testing
@@ -151,7 +151,7 @@ Rust functions exposed to frontend:
 - `update_config()` → update settings
 - `get_break_debt()` → accumulated break debt (seconds)
 
-## Implementation Flow
+## Implementation Flow 
 
 ### Timer State Machine
 

@@ -1,16 +1,24 @@
 // Wait for Tauri API to be available
 let invoke;
+const IS_BREAKSHIELD = window.location.hash === '#breakshield';
+let breakshieldOpen = false; // main-window guard: don't spam open/close each second
 
 // State
 let timerState = null;
 let config = null;
 let updateInterval = null;
+let frozenWorkState = null; // Stores last work state to freeze main window during breaks
 
 // DOM Elements (will be initialized after DOM is ready)
 let tabs, tabContents, timeDisplay, phaseLabel, sessionCount, breakDebt;
 let progressCircle, pauseBtn, pauseIcon, skipBtn, settingsBtn;
 let settingsModal, closeSettings, saveSettings, breakOverlay;
-let breakTimeDisplay, breakPhaseLabel, breakProgressCircle, emergencySkipBtn;
+let breakTimeDisplay, breakPhaseLabel, breakTimeUpContainer;
+let emergencySkipContainer, holdProgressBar, holdProgressText;
+let confirmWordContainer, confirmWordInput, confirmSkipBtn;
+let emergencyLimitMsg;
+let emergencyHoldInstruction;
+let holdProgressContainer;
 
 // Initialize DOM elements
 function initDOMElements() {
@@ -28,11 +36,58 @@ function initDOMElements() {
     settingsModal = document.getElementById('settingsModal');
     closeSettings = document.getElementById('closeSettings');
     saveSettings = document.getElementById('saveSettings');
+}
+
+// Create break screen DOM (only called in breakshield mode)
+function createBreakScreen() {
+    const html = `
+        <div class="break-overlay hidden" id="breakOverlay">
+            <div class="break-timer">
+                <div class="break-content">
+                    <div class="phase-label" id="breakPhaseLabel">Break</div>
+                    <div class="time-display" id="breakTimeDisplay">5:00</div>
+                </div>
+                <p class="break-message">Take a walk!<br>Step away from your computer.</p>
+                <p class="emergency-limit-msg hidden" id="emergencyLimitMsg">
+                    Emergency skip limit reached for today.
+                </p>
+            </div>
+            <div class="emergency-skip-container hidden" id="emergencySkipContainer">
+                <p class="emergency-instruction" id="emergencyHoldInstruction">
+                    Hold <kbd>Ctrl+Alt+Shift+E</kbd> for 4 seconds to arm emergency skip
+                </p>
+                <div class="hold-progress" id="holdProgressContainer">
+                    <div class="hold-progress-bar" id="holdProgressBar"></div>
+                    <span id="holdProgressText">0%</span>
+                </div>
+            </div>
+            <div class="confirm-word-container hidden" id="confirmWordContainer">
+                <p class="confirm-instruction">Type <strong>SKIP</strong> to confirm:</p>
+                <input type="text" id="confirmWordInput" class="confirm-word-input" autocomplete="off" />
+                <button class="confirm-btn" id="confirmSkipBtn">Confirm</button>
+            </div>
+
+            <div class="break-time-up-container hidden" id="breakTimeUpContainer">
+                <p class="break-time-up-msg">Break complete!<br>Touch keyboard or move mouse to start work session.</p>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', html);
+    
+    // Now get references to the created elements
     breakOverlay = document.getElementById('breakOverlay');
     breakTimeDisplay = document.getElementById('breakTimeDisplay');
     breakPhaseLabel = document.getElementById('breakPhaseLabel');
-    breakProgressCircle = document.getElementById('breakProgressCircle');
-    emergencySkipBtn = document.getElementById('emergencySkipBtn');
+    breakTimeUpContainer = document.getElementById('breakTimeUpContainer');
+    emergencyLimitMsg = document.getElementById('emergencyLimitMsg');
+    emergencySkipContainer = document.getElementById('emergencySkipContainer');
+    emergencyHoldInstruction = document.getElementById('emergencyHoldInstruction');
+    holdProgressContainer = document.getElementById('holdProgressContainer');
+    holdProgressBar = document.getElementById('holdProgressBar');
+    holdProgressText = document.getElementById('holdProgressText');
+    confirmWordContainer = document.getElementById('confirmWordContainer');
+    confirmWordInput = document.getElementById('confirmWordInput');
+    confirmSkipBtn = document.getElementById('confirmSkipBtn');
 }
 
 // Tab switching
@@ -71,13 +126,13 @@ function setupEventListeners() {
         
         if (timerState.status === 'Running') {
             await invoke('pause_timer');
-            pauseIcon.textContent = '▶';
+            pauseIcon.src = 'play.svg';
         } else if (timerState.status === 'Paused') {
             await invoke('resume_timer');
-            pauseIcon.textContent = '⏸';
+            pauseIcon.src = 'pause.svg';
         } else {
             await invoke('start_timer');
-            pauseIcon.textContent = '⏸';
+            pauseIcon.src = 'pause.svg';
         }
         
         await updateTimerState();
@@ -94,35 +149,311 @@ function setupEventListeners() {
         }
     });
 
-    emergencySkipBtn.addEventListener('click', async () => {
-        if (confirm('Emergency skip will add remaining break time to your next break. Continue?')) {
-            try {
-                const approved = await invoke('request_emergency_skip');
-                if (!approved) {
-                    alert('Emergency skip limit reached for today.');
-                } else {
-                    await updateTimerState();
-                }
-            } catch (error) {
-                console.error('Emergency skip failed:', error);
+    // Emergency skip with hold chord + confirm word (breakshield only)
+    if (IS_BREAKSHIELD) {
+        setupEmergencySkip();
+    }
+}
+
+// Setup emergency skip with hold chord detection
+function setupEmergencySkip() {
+    let holdStartTime = null;
+    let holdInterval = null;
+    let isHolding = false;
+    let isArmed = false;  // true once hold is complete and confirm word input is shown
+    let confirmTimeout = null;  // timeout for confirm word input
+    
+    // Show emergency skip UI when break overlay is shown
+    const showEmergencySkipUI = () => {
+        // If we're already at the confirm step, don't reset the UI.
+        if (confirmWordContainer && !confirmWordContainer.classList.contains('hidden')) {
+            return;
+        }
+        if (emergencyLimitMsg) emergencyLimitMsg.classList.add('hidden');
+        if (emergencyHoldInstruction) emergencyHoldInstruction.classList.remove('hidden');
+        if (holdProgressContainer) holdProgressContainer.classList.remove('hidden');
+        emergencySkipContainer.classList.remove('hidden');
+        confirmWordContainer.classList.add('hidden');
+        holdProgressBar.style.width = '0%';
+        holdProgressText.textContent = '0%';
+    };
+    
+    // Hide emergency skip UI when break overlay is hidden
+    const hideEmergencySkipUI = () => {
+        emergencySkipContainer.classList.add('hidden');
+        confirmWordContainer.classList.add('hidden');
+        if (holdInterval) {
+            clearInterval(holdInterval);
+            holdInterval = null;
+        }
+        if (confirmTimeout) {
+            clearTimeout(confirmTimeout);
+            confirmTimeout = null;
+        }
+        isHolding = false;
+        isArmed = false;
+    };
+    
+    // Reset to hold state (called when confirm timeout expires)
+    const resetToHoldState = () => {
+        if (confirmTimeout) {
+            clearTimeout(confirmTimeout);
+            confirmTimeout = null;
+        }
+        isArmed = false;
+        confirmWordContainer.classList.add('hidden');
+        confirmWordInput.value = '';
+        if (emergencyHoldInstruction) emergencyHoldInstruction.classList.remove('hidden');
+        if (holdProgressContainer) holdProgressContainer.classList.remove('hidden');
+        holdProgressBar.style.width = '0%';
+        holdProgressText.textContent = '0%';
+    };
+
+    const showEmergencyLimitMsg = () => {
+        hideEmergencySkipUI();
+        if (emergencyLimitMsg) emergencyLimitMsg.classList.remove('hidden');
+    };
+    
+    // Check if emergency skip UI should be shown
+    const checkAndShowEmergencySkip = async () => {
+        try {
+            // If confirm box is already shown, do not touch the emergency UI.
+            // updateTimerState runs every second; resetting here would make the input disappear.
+            if (confirmWordContainer && !confirmWordContainer.classList.contains('hidden')) {
+                return;
             }
+
+            const currentState = await invoke('get_timer_state');
+            const currentConfig = await invoke('get_config');
+            
+            // Only show if limit not reached
+            if (currentState.emergency_skips_today >= currentConfig.emergency_skips_per_day) {
+                showEmergencyLimitMsg();
+            } else {
+                showEmergencySkipUI();
+            }
+        } catch (error) {
+            console.error('Failed to check emergency skip:', error);
+        }
+    };
+    
+    // When X11 grabs are active, the webview may not receive key events.
+    // So we poll the backend for the chord state (Ctrl+Alt+Shift+E) and implement hold logic here.
+    let chordPoll = null;
+    let lastPressedAt = null;
+
+    const startChordPolling = async () => {
+        if (chordPoll) return;
+        chordPoll = setInterval(async () => {
+            try {
+                if (!breakOverlay || breakOverlay.classList.contains('hidden')) return;
+                if (!emergencySkipContainer || emergencySkipContainer.classList.contains('hidden')) return;
+                if (isArmed) return;
+
+                const pressed = await invoke('emergency_chord_pressed');
+                const currentConfig = await invoke('get_config');
+                const holdDuration = (currentConfig.emergency_hold_seconds || 4) * 1000;
+
+                if (pressed) {
+                    if (!lastPressedAt) lastPressedAt = Date.now();
+                    const elapsed = Date.now() - lastPressedAt;
+                    const progress = Math.min((elapsed / holdDuration) * 100, 100);
+                    holdProgressBar.style.width = progress + '%';
+                    holdProgressText.textContent = Math.round(progress) + '%';
+
+                    if (progress >= 100) {
+                        isArmed = true;
+                        // Stop polling while confirm is active
+                        clearInterval(chordPoll);
+                        chordPoll = null;
+
+                        if (emergencyHoldInstruction) emergencyHoldInstruction.classList.add('hidden');
+                        if (holdProgressContainer) holdProgressContainer.classList.add('hidden');
+                        confirmWordContainer.classList.remove('hidden');
+
+                        // Temporarily allow typing by releasing grabs
+                        try { await invoke('deactivate_input_blocking'); } catch (_) {}
+
+                        confirmWordInput.value = '';
+                        setTimeout(() => confirmWordInput.focus(), 100);
+
+                        // Start confirm timeout
+                        const timeoutSeconds = currentConfig.emergency_confirm_timeout_seconds || 15;
+                        confirmTimeout = setTimeout(async () => {
+                            resetToHoldState();
+                            // Re-enable blocking if still in break
+                            try { await invoke('activate_input_blocking'); } catch (_) {}
+                            startChordPolling();
+                        }, timeoutSeconds * 1000);
+                    }
+                } else {
+                    lastPressedAt = null;
+                    holdProgressBar.style.width = '0%';
+                    holdProgressText.textContent = '0%';
+                }
+            } catch (e) {
+                // If the backend can't poll, just ignore; the UI stays in "hold" state.
+            }
+        }, 100);
+    };
+
+    const stopChordPolling = () => {
+        if (chordPoll) {
+            clearInterval(chordPoll);
+            chordPoll = null;
+        }
+        lastPressedAt = null;
+    };
+    
+    // Prevent global keyboard handlers from interfering with the input
+    confirmWordInput.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+    });
+    
+    confirmWordInput.addEventListener('keyup', (e) => {
+        e.stopPropagation();
+    });
+    
+    // Confirm word input handler
+    confirmSkipBtn.addEventListener('click', async () => {
+        await handleEmergencySkipConfirm();
+    });
+    
+    confirmWordInput.addEventListener('keypress', async (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+            await handleEmergencySkipConfirm();
         }
     });
+    
+    // Handle emergency skip confirmation
+    const handleEmergencySkipConfirm = async () => {
+        try {
+            const currentConfig = await invoke('get_config');
+            const inputWord = confirmWordInput.value.trim().toUpperCase();
+            const expectedWord = currentConfig.emergency_confirm_word.toUpperCase();
+            
+            if (inputWord !== expectedWord) {
+                alert(`Incorrect confirmation word. Expected: ${expectedWord}`);
+                confirmWordInput.value = '';
+                confirmWordInput.focus();
+                return;
+            }
+            
+            // Check limit again before proceeding
+            const currentState = await invoke('get_timer_state');
+            if (currentState.emergency_skips_today >= currentConfig.emergency_skips_per_day) {
+                showEmergencyLimitMsg();
+                return;
+            }
+            
+            const approved = await invoke('request_emergency_skip');
+            if (!approved) {
+                showEmergencyLimitMsg();
+            } else {
+                await updateTimerState();
+            }
+            
+            // Clear timeout if confirmation succeeds
+            if (confirmTimeout) {
+                clearTimeout(confirmTimeout);
+                confirmTimeout = null;
+            }
+
+            // Re-enable blocking if we are still in break and skip was denied.
+            // If skip succeeded, updateTimerState() will hide overlay and deactivate blocking anyway.
+            if (!approved) {
+                try { await invoke('activate_input_blocking'); } catch (_) {}
+                startChordPolling();
+            }
+            
+            // Reset UI
+            confirmWordInput.value = '';
+            isArmed = false;
+            hideEmergencySkipUI();
+        } catch (error) {
+            console.error('Emergency skip failed:', error);
+        }
+    };
+
+    // Expose functions to be called from showBreakOverlay/hideBreakOverlay.
+    // IMPORTANT: updateTimerState/showBreakOverlay calls this every second; keep it idempotent.
+    window.checkAndShowEmergencySkip = async () => {
+        await checkAndShowEmergencySkip();
+        // If emergency UI is visible, start polling.
+        if (emergencySkipContainer && !emergencySkipContainer.classList.contains('hidden')) {
+            startChordPolling();
+        } else {
+            stopChordPolling();
+        }
+    };
+
+    window.hideEmergencySkipUI = () => {
+        stopChordPolling();
+        hideEmergencySkipUI();
+    };
 }
 
 // Update timer state
 async function updateTimerState() {
     try {
         timerState = await invoke('get_timer_state');
+        
+        const inBreak = (timerState.phase === 'Break' || timerState.phase === 'LongBreak') && timerState.status === 'Running';
+        const breakTimeUp = (timerState.phase === 'Break' || timerState.phase === 'LongBreak') && timerState.status === 'Paused' && timerState.remaining_seconds === 0;
+
+        // Main window: freeze display during breaks, only manage breakshield window
+        if (!IS_BREAKSHIELD) {
+            // Capture work state when entering break
+            if ((inBreak || breakTimeUp) && !frozenWorkState) {
+                // Store the state we want to display while frozen
+                // Use the configured work duration as the "full" display
+                frozenWorkState = {
+                    phase: 'Work',
+                    status: 'Paused', // Show as paused so user knows it's frozen
+                    remaining_seconds: 0, // Show 0:00 to indicate work session ended
+                    total_seconds: timerState.total_seconds || 1500,
+                    session_count: timerState.session_count,
+                    break_debt_seconds: timerState.break_debt_seconds
+                };
+            }
+            
+            // Clear frozen state when work resumes
+            if (!inBreak && !breakTimeUp && frozenWorkState) {
+                frozenWorkState = null;
+            }
+            
+            // Update UI with frozen state during breaks, real state otherwise
+            updateUI((inBreak || breakTimeUp) ? frozenWorkState : null);
+            
+            // Manage breakshield window open/close
+            if ((inBreak || breakTimeUp) && !breakshieldOpen) {
+                const base = window.location.href.replace(/#.*$/, '');
+                await invoke('show_breakshield', { url: `${base}#breakshield` });
+                breakshieldOpen = true;
+            } else if (!inBreak && !breakTimeUp && breakshieldOpen) {
+                await invoke('hide_breakshield');
+                breakshieldOpen = false;
+            }
+            return;
+        }
+
+        // Breakshield window: update UI and show/hide break overlay
         updateUI();
         
-        // Show/hide break overlay
         if (timerState.phase === 'Break' || timerState.phase === 'LongBreak') {
-            if (timerState.status === 'Running') {
-                showBreakOverlay();
+            if (timerState.status === 'Running' || breakTimeUp) {
+                if (breakOverlay.classList.contains('hidden')) {
+                    await showBreakOverlay();
+                } else if (breakTimeUp) {
+                    // Break time just ran out - transition to "time up" mode
+                    await handleBreakTimeUp();
+                }
             }
         } else {
-            hideBreakOverlay();
+            if (!breakOverlay.classList.contains('hidden')) {
+                await hideBreakOverlay();
+            }
         }
     } catch (error) {
         console.error('Failed to update timer state:', error);
@@ -130,55 +461,130 @@ async function updateTimerState() {
 }
 
 // Update UI
-function updateUI() {
-    if (!timerState) return;
+// overrideState: optional state to display instead of timerState (used for frozen main window)
+function updateUI(overrideState) {
+    const displayState = overrideState || timerState;
+    if (!displayState) return;
     
-    // Update time display
-    const minutes = Math.floor(timerState.remaining_seconds / 60);
-    const seconds = timerState.remaining_seconds % 60;
+    // Main window elements: use displayState (may be frozen work state)
+    const minutes = Math.floor(displayState.remaining_seconds / 60);
+    const seconds = displayState.remaining_seconds % 60;
     const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
     timeDisplay.textContent = timeStr;
-    breakTimeDisplay.textContent = timeStr;
     
-    // Update phase label
-    let phaseName = timerState.phase === 'Work' ? 'Pomodoro' : 
-                    timerState.phase === 'Break' ? 'Break' : 'Long Break';
-    phaseLabel.textContent = phaseName;
-    breakPhaseLabel.textContent = phaseName;
+    // Phase label for main window
+    let mainPhaseName = displayState.phase === 'Work' ? 'Pomodoro' : 
+                        displayState.phase === 'Break' ? 'Break' : 'Long Break';
+    phaseLabel.textContent = mainPhaseName;
     
-    // Update session count
-    sessionCount.textContent = timerState.session_count;
+    // Session count from display state
+    sessionCount.textContent = displayState.session_count;
     
-    // Update break debt
-    const debtMinutes = Math.floor(timerState.break_debt_seconds / 60);
-    const debtSeconds = timerState.break_debt_seconds % 60;
+    // Break debt from display state
+    const debtMinutes = Math.floor(displayState.break_debt_seconds / 60);
+    const debtSeconds = displayState.break_debt_seconds % 60;
     breakDebt.textContent = `Break debt: ${debtMinutes}m ${debtSeconds}s`;
     
-    // Update progress circle
-    const progress = timerState.total_seconds > 0 ? 
-        1 - (timerState.remaining_seconds / timerState.total_seconds) : 0;
-    const circumference = 2 * Math.PI * 90;
-    const offset = circumference * (1 - progress);
-    progressCircle.style.strokeDashoffset = offset;
-    breakProgressCircle.style.strokeDashoffset = offset;
+    // Progress circle for main window
+    const mainRemainingRatio = displayState.total_seconds > 0
+        ? (displayState.remaining_seconds / displayState.total_seconds)
+        : 0;
+    const circumference = 2 * Math.PI * 98;
+    const mainOffset = circumference * (1 - mainRemainingRatio);
+    progressCircle.style.strokeDashoffset = mainOffset;
     
-    // Update pause button
-    if (timerState.status === 'Running') {
-        pauseIcon.textContent = '⏸';
-    } else if (timerState.status === 'Paused') {
-        pauseIcon.textContent = '▶';
-    } else {
-        pauseIcon.textContent = '▶';
+    // Breakshield elements: always use real timerState for break countdown
+    if (IS_BREAKSHIELD && timerState) {
+        const breakTimeUp = (timerState.phase === 'Break' || timerState.phase === 'LongBreak') && 
+                            timerState.status === 'Paused' && 
+                            timerState.remaining_seconds === 0;
+        
+        if (breakTimeUp) {
+            // Hide time display, show break time up message
+            breakTimeDisplay.classList.add('hidden');
+            breakTimeUpContainer.classList.remove('hidden');
+        } else {
+            // Show time display, hide break time up message
+            breakTimeDisplay.classList.remove('hidden');
+            breakTimeUpContainer.classList.add('hidden');
+            const breakMinutes = Math.floor(timerState.remaining_seconds / 60);
+            const breakSeconds = timerState.remaining_seconds % 60;
+            const breakTimeStr = `${breakMinutes}:${breakSeconds.toString().padStart(2, '0')}`;
+            breakTimeDisplay.textContent = breakTimeStr;
+        }
+        
+        let breakPhaseName = timerState.phase === 'Work' ? 'Pomodoro' : 
+                             timerState.phase === 'Break' ? 'Break' : 'Long Break';
+        breakPhaseLabel.textContent = breakPhaseName;
     }
     
-    // Enable/disable skip button
-    skipBtn.disabled = timerState.phase !== 'Work';
-    skipBtn.style.opacity = timerState.phase === 'Work' ? '1' : '0.5';
+    // Update pause button based on display state
+    if (displayState.status === 'Running') {
+        pauseIcon.src = 'pause.svg';
+    } else if (displayState.status === 'Paused') {
+        pauseIcon.src = 'play.svg';
+    } else {
+        pauseIcon.src = 'play.svg';
+    }
+    
+    // Enable/disable skip button based on display state
+    skipBtn.disabled = displayState.phase !== 'Work';
+    skipBtn.style.opacity = displayState.phase === 'Work' ? '1' : '0.5';
 }
 
 // Show break overlay
-function showBreakOverlay() {
+async function showBreakOverlay() {
+    // Breakshield window only: Idempotent guard.
+    if (!IS_BREAKSHIELD) return;
+    if (!breakOverlay.classList.contains('hidden')) return;
+
+    document.body.classList.add('break-active');
     breakOverlay.classList.remove('hidden');
+    
+    // Make window fullscreen and always-on-top (and focused) BEFORE grabbing input.
+    // If we grab first, the webview may not receive the emergency chord.
+    try {
+        const { getCurrentWindow } = window.__TAURI__.window;
+        const appWindow = getCurrentWindow();
+        if (IS_BREAKSHIELD) {
+            await appWindow.show();
+            await appWindow.setFullscreen(true);
+            await appWindow.setAlwaysOnTop(true);
+            await appWindow.setFocus();
+        }
+    } catch (error) {
+        console.error('Failed to set window properties:', error);
+    }
+
+    // Check if break time is up
+    const breakTimeUp = (timerState.phase === 'Break' || timerState.phase === 'LongBreak') && 
+                       timerState.status === 'Paused' && 
+                       timerState.remaining_seconds === 0;
+
+    // Only activate input blocking if break is still running
+    if (!breakTimeUp) {
+        try {
+            await invoke('activate_input_blocking');
+        } catch (error) {
+            console.error('Failed to activate input blocking:', error);
+        }
+        
+        // Show emergency skip UI if limit not reached
+        if (window.checkAndShowEmergencySkip) {
+            await window.checkAndShowEmergencySkip();
+        }
+    } else {
+        // Break time is up - deactivate input blocking and set up interaction listener
+        try {
+            await invoke('deactivate_input_blocking');
+        } catch (error) {
+            console.error('Failed to deactivate input blocking:', error);
+        }
+        
+        // Set up one-time listener for any user interaction
+        setupBreakCompleteListener();
+    }
+    
     // Request notification permission if not granted
     if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
@@ -186,20 +592,148 @@ function showBreakOverlay() {
 }
 
 // Hide break overlay
-function hideBreakOverlay() {
+async function hideBreakOverlay() {
+    // Breakshield window only: Idempotent guard.
+    if (!IS_BREAKSHIELD) return;
+    if (breakOverlay.classList.contains('hidden')) return;
+
     breakOverlay.classList.add('hidden');
+    document.body.classList.remove('break-active');
+    
+    // Reset break time up flag
+    breakTimeUpHandled = false;
+    
+    // Hide emergency skip UI
+    if (window.hideEmergencySkipUI) {
+        window.hideEmergencySkipUI();
+    }
+    
+    // Remove break complete listener if it exists
+    removeBreakCompleteListener();
+    
+    // Deactivate input blocking
+    try {
+        await invoke('deactivate_input_blocking');
+    } catch (error) {
+        console.error('Failed to deactivate input blocking:', error);
+    }
+    
+    // Restore window to normal
+    try {
+        const { getCurrentWindow } = window.__TAURI__.window;
+        const appWindow = getCurrentWindow();
+        await appWindow.setFullscreen(false);
+        await appWindow.setAlwaysOnTop(false);
+    } catch (error) {
+        console.error('Failed to restore window properties:', error);
+    }
+}
+
+// Handle transition to break time up state
+let breakTimeUpHandled = false;
+
+async function handleBreakTimeUp() {
+    // Only run once per break completion
+    if (breakTimeUpHandled) return;
+    breakTimeUpHandled = true;
+    
+    console.log('Break time is up - deactivating input blocking and setting up listeners');
+    
+    // Hide emergency skip UI
+    if (window.hideEmergencySkipUI) {
+        window.hideEmergencySkipUI();
+    }
+    
+    // Deactivate input blocking to allow user interaction
+    try {
+        await invoke('deactivate_input_blocking');
+        console.log('Input blocking deactivated');
+    } catch (error) {
+        console.error('Failed to deactivate input blocking:', error);
+    }
+    
+    // Set up one-time listener for any user interaction
+    setupBreakCompleteListener();
+}
+
+// Set up listener for user interaction to complete break
+let breakCompleteHandlers = null;
+
+function setupBreakCompleteListener() {
+    // Remove any existing listeners first
+    removeBreakCompleteListener();
+    
+    console.log('Setting up break complete listeners');
+    
+    const handleInteraction = async () => {
+        console.log('User interaction detected, completing break...');
+        try {
+            await invoke('complete_break');
+            await updateTimerState();
+        } catch (error) {
+            console.error('Failed to complete break:', error);
+        }
+    };
+    
+    // Listen for keyboard and mouse events
+    const keyHandler = (e) => {
+        console.log('Key pressed:', e.key);
+        handleInteraction();
+    };
+    
+    const mouseHandler = (e) => {
+        console.log('Mouse moved');
+        handleInteraction();
+    };
+    
+    const clickHandler = (e) => {
+        console.log('Mouse clicked');
+        handleInteraction();
+    };
+    
+    document.addEventListener('keydown', keyHandler, { once: true });
+    document.addEventListener('mousemove', mouseHandler, { once: true });
+    document.addEventListener('click', clickHandler, { once: true });
+    
+    // Store handlers so we can remove them later if needed
+    breakCompleteHandlers = { keyHandler, mouseHandler, clickHandler };
+}
+
+function removeBreakCompleteListener() {
+    if (breakCompleteHandlers) {
+        document.removeEventListener('keydown', breakCompleteHandlers.keyHandler);
+        document.removeEventListener('mousemove', breakCompleteHandlers.mouseHandler);
+        document.removeEventListener('click', breakCompleteHandlers.clickHandler);
+        breakCompleteHandlers = null;
+    }
 }
 
 // Open settings
 async function openSettings() {
     try {
         config = await invoke('get_config');
+        const state = await invoke('get_timer_state');
         document.getElementById('workDuration').value = config.work_duration_minutes;
         document.getElementById('breakDuration').value = config.break_duration_minutes;
         document.getElementById('longBreakDuration').value = config.long_break_duration_minutes;
         document.getElementById('sessionsBeforeLongBreak').value = config.sessions_before_long_break;
-        document.getElementById('emergencySkipsPerDay').value = config.emergency_skips_per_day;
+        const emergencySkipsEl = document.getElementById('emergencySkipsPerDay');
+        const lockedNote = document.getElementById('emergencySkipsLockedNote');
+
+        // If locked, show the effective locked limit and disable editing.
+        emergencySkipsEl.value = state.emergency_skips_limit ?? config.emergency_skips_per_day;
+        if (state.emergency_limit_locked) {
+            emergencySkipsEl.disabled = true;
+            lockedNote.classList.remove('hidden');
+        } else {
+            emergencySkipsEl.disabled = false;
+            lockedNote.classList.add('hidden');
+        }
+
         document.getElementById('breakDebtCap').value = config.break_debt_cap_minutes;
+        document.getElementById('emergencyHoldSeconds').value = config.emergency_hold_seconds || 4;
+        document.getElementById('emergencyConfirmWord').value = config.emergency_confirm_word || 'SKIP';
+        document.getElementById('emergencyConfirmTimeout').value = config.emergency_confirm_timeout_seconds || 15;
         settingsModal.classList.add('active');
     } catch (error) {
         console.error('Failed to load config:', error);
@@ -215,6 +749,9 @@ async function saveConfig() {
         sessions_before_long_break: parseInt(document.getElementById('sessionsBeforeLongBreak').value),
         emergency_skips_per_day: parseInt(document.getElementById('emergencySkipsPerDay').value),
         break_debt_cap_minutes: parseInt(document.getElementById('breakDebtCap').value),
+        emergency_hold_seconds: parseInt(document.getElementById('emergencyHoldSeconds').value),
+        emergency_confirm_word: document.getElementById('emergencyConfirmWord').value.trim().toUpperCase() || 'SKIP',
+        emergency_confirm_timeout_seconds: parseInt(document.getElementById('emergencyConfirmTimeout').value) || 15,
     };
     
     try {
@@ -240,6 +777,45 @@ async function updateStats() {
 
 // Initialize
 async function init() {
+    // Listen for Tauri events
+    const { listen } = window.__TAURI__.event;
+    
+    // Listen for phase changes
+    listen('phase-changed', (event) => {
+        console.log('Phase changed to:', event.payload);
+        updateTimerState();
+    });
+    
+    // Listen for break started
+    listen('break-started', async (event) => {
+        console.log('Break started:', event.payload);
+        // Show notification
+        if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Pomohardo', {
+                body: event.payload,
+                icon: '/icons/32x32.png'
+            });
+        } else if ('Notification' in window && Notification.permission !== 'denied') {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    new Notification('Pomohardo', {
+                        body: event.payload,
+                        icon: '/icons/32x32.png'
+                    });
+                }
+            });
+        }
+        
+        // Activate break overlay
+        await updateTimerState();
+    });
+    
+    // Auto-start the timer when app opens (main window only)
+    if (!IS_BREAKSHIELD) {
+        await invoke('start_timer');
+        pauseIcon.src = 'pause.svg';
+    }
+    
     await updateTimerState();
     
     // Update timer every second
@@ -255,6 +831,10 @@ function waitForTauri() {
         console.log('Tauri API found, initializing...');
         invoke = window.__TAURI__.core.invoke;
         initDOMElements();
+        if (IS_BREAKSHIELD) {
+            document.body.classList.add('breakshield');
+            createBreakScreen();
+        }
         console.log('DOM elements initialized, pauseBtn:', pauseBtn);
         setupEventListeners();
         console.log('Event listeners set up');

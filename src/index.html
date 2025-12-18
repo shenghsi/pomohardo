@@ -19,9 +19,9 @@
         <div class="tab-content active" id="timerTab">
             <div class="timer-container">
                 <svg class="circular-timer" viewBox="0 0 200 200">
-                    <circle class="timer-bg" cx="100" cy="100" r="90" />
-                    <circle class="timer-progress-bg" cx="100" cy="100" r="90" />
-                    <circle class="timer-progress" cx="100" cy="100" r="90" id="progressCircle" />
+                    <circle class="timer-bg" cx="100" cy="100" r="98" />
+                    <circle class="timer-progress-bg" cx="100" cy="100" r="98" />
+                    <circle class="timer-progress" cx="100" cy="100" r="98" id="progressCircle" />
                 </svg>
                 <div class="timer-content">
                     <div class="phase-label" id="phaseLabel">Pomodoro</div>
@@ -31,9 +31,11 @@
 
             <div class="controls">
                 <button class="control-btn" id="pauseBtn" title="Pause">
-                    <span id="pauseIcon">⏸</span>
+                    <img id="pauseIcon" src="pause.svg" alt="Pause" />
                 </button>
-                <button class="control-btn" id="skipBtn" title="Skip">⏭</button>
+                <button class="control-btn" id="skipBtn" title="Skip">
+                    <img src="skip-forward.svg" alt="Skip" />
+                </button>
             </div>
 
             <div class="info">
@@ -88,35 +90,33 @@
                 </div>
                 <div class="setting-group">
                     <label for="emergencySkipsPerDay">Emergency Skips Per Day:</label>
-                    <input type="number" id="emergencySkipsPerDay" min="0" max="10" value="3">
+                    <input type="number" id="emergencySkipsPerDay" min="0" max="10" value="2">
+                    <p class="hint hidden" id="emergencySkipsLockedNote">
+                        Locked for today after the first work session ends.
+                    </p>
                 </div>
                 <div class="setting-group">
                     <label for="breakDebtCap">Break Debt Cap (minutes):</label>
                     <input type="number" id="breakDebtCap" min="10" max="120" value="60">
+                </div>
+                <div class="setting-group">
+                    <label for="emergencyHoldSeconds">Emergency Skip Hold Duration (seconds):</label>
+                    <input type="number" id="emergencyHoldSeconds" min="1" max="10" value="4">
+                </div>
+                <div class="setting-group">
+                    <label for="emergencyConfirmWord">Emergency Skip Confirm Word:</label>
+                    <input type="text" id="emergencyConfirmWord" value="SKIP" maxlength="10">
+                </div>
+                <div class="setting-group">
+                    <label for="emergencyConfirmTimeout">Emergency Skip Confirm Timeout (seconds):</label>
+                    <input type="number" id="emergencyConfirmTimeout" min="5" max="120" value="15">
                 </div>
                 <button class="save-btn" id="saveSettings">Save</button>
             </div>
         </div>
     </div>
 
-    <!-- Break Overlay (shown during breaks) -->
-    <div class="break-overlay hidden" id="breakOverlay">
-        <div class="break-content">
-            <div class="break-timer">
-                <svg class="circular-timer" viewBox="0 0 200 200">
-                    <circle class="timer-bg" cx="100" cy="100" r="90" />
-                    <circle class="timer-progress-bg" cx="100" cy="100" r="90" />
-                    <circle class="timer-progress" cx="100" cy="100" r="90" id="breakProgressCircle" />
-                </svg>
-                <div class="timer-content">
-                    <div class="phase-label" id="breakPhaseLabel">Break</div>
-                    <div class="time-display" id="breakTimeDisplay">5:00</div>
-                </div>
-            </div>
-            <p class="break-message">Take a walk! Step away from your computer.</p>
-            <button class="emergency-btn" id="emergencySkipBtn">Emergency Skip</button>
-        </div>
-    </div>
+    <!-- Break screen is created dynamically in breakshield mode only (see main.js) -->
 
     <script src="main.js"></script>
 </body>

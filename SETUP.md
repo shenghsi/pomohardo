@@ -63,7 +63,26 @@ sudo apt-get update && sudo apt-get install -y \
   build-essential curl libssl-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 
-### 2. Build the Project
+### 2. Generate App Icons
+
+The app uses PNG icons generated from the SVG source. Generate them before building:
+
+```bash
+# Install Node dependencies (if not already done)
+npm install
+
+# Generate PNG icons from SVG
+npm run generate-icons
+```
+
+This creates the required PNG files in `src-tauri/icons/`:
+- `32x32.png`
+- `128x128.png`
+- `128x128@2x.png`
+
+**Note:** The source SVG is at `src-tauri/icons/icon.svg`. If you modify it, regenerate the PNGs.
+
+### 3. Build the Project
 
 ```bash
 # From the project directory
@@ -71,7 +90,7 @@ source $HOME/.cargo/env
 npm run dev
 ```
 
-### 3. Test the Application
+### 4. Test the Application
 
 - Click play to start a pomodoro
 - Verify timer counts down
@@ -135,6 +154,7 @@ npm run dev
 ## Testing Checklist
 
 - [ ] Install system dependencies
+- [ ] Generate app icons (`npm run generate-icons`)
 - [ ] Project builds successfully (`cargo check`)
 - [ ] App launches (`npm run dev`)
 - [ ] Timer starts and counts down
@@ -176,12 +196,18 @@ pomohardo/
 │   │   └── input_blocker.rs  # Platform-specific input blocking
 │   ├── Cargo.toml            # Rust dependencies
 │   ├── tauri.conf.json       # Tauri configuration
-│   └── build.rs              # Build script
+│   ├── build.rs              # Build script
+│   └── icons/                # App icons
+│       ├── icon.svg          # Source SVG icon
+│       ├── 32x32.png        # Generated PNG (32x32)
+│       ├── 128x128.png      # Generated PNG (128x128)
+│       └── 128x128@2x.png   # Generated PNG (256x256, HiDPI)
 ├── src/                      # Frontend
 │   ├── index.html            # Main UI
 │   ├── main.js               # Frontend logic
 │   └── styles.css            # Dark theme styling
 ├── package.json              # Node dependencies
+├── generate-icons-simple.js  # Icon generation script
 ├── README.md                 # User documentation
 └── SETUP.md                  # This file
 ```
