@@ -5,7 +5,7 @@ use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, Emitter,
+    AppHandle, Manager, Emitter, WebviewUrl, WebviewWindowBuilder,
 };
 use tokio::sync::Mutex;
 
@@ -159,10 +159,11 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
     // Create menu items
     let show_item = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
     let pause_resume_item = MenuItem::with_id(app, "pause_resume", "Pause", true, None::<&str>)?;
+    let prefs_item = MenuItem::with_id(app, "preferences", "Preferences", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
     // Create menu
-    let menu = Menu::with_items(app, &[&show_item, &pause_resume_item, &quit_item])?;
+    let menu = Menu::with_items(app, &[&show_item, &pause_resume_item, &prefs_item, &quit_item])?;
 
     // Generate initial icon (full ring, work phase, not paused)
     let icon_data = generate_ring_icon(1.0, Phase::Work, false);
@@ -208,6 +209,26 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
                                     app_handle.emit("refresh-tray-icon", ()).ok();
                                 }
                             });
+                }
+                "preferences" => {
+                    if let Some(window) = app.get_webview_window("settings") {
+                        let _ = window.set_focus();
+                    } else {
+                        // Create settings window
+                        let _ = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
+                            .title("Preferences")
+                            .inner_size(450.0, 600.0)
+                            .resizable(false)
+                            .decorations(true)
+                            .center()
+                            .build()
+                            .and_then(|w| {
+                                let _ = w.show();
+                                let _ = w.set_focus();
+                                Ok(w)
+                            })
+                            .map_err(|e| eprintln!("Failed to create settings window: {}", e));
+                    }
                 }
                 "quit" => {
                     app.exit(0);
