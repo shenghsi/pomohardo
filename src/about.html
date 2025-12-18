@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Pomohardo</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            -webkit-user-select: none;
+            user-select: none;
+            cursor: default;
+            /* Ensure background matches main app if styles.css didn't cover it (it does, but just in case) */
+            background: #2b2b2b;
+            color: #ffffff;
+            height: 100vh;
+            margin: 0;
+        }
+
+        #logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            /* Circular background for the logo if needed, matching screenshot */
+            /* background: #3a3a3a; */
+            /* border-radius: 50%; */
+            /* padding: 10px; */
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .version {
+            font-size: 16px;
+            color: #888;
+            margin-bottom: 20px;
+        }
+
+        .description {
+            font-size: 14px;
+            color: #ccc;
+            margin-bottom: 40px;
+            line-height: 1.5;
+            max-width: 80%;
+        }
+
+        .copyright {
+            font-size: 12px;
+            color: #666;
+            margin-top: auto;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <img id="logo" alt="Pomohardo Logo">
+    <h1>Pomohardo</h1>
+    <div class="version">Version <span id="version">...</span></div>
+    <div class="description">
+        A cross-platform pomodoro timer that enforces breaks.
+    </div>
+    <div class="copyright">Copyright © <span id="year"></span></div>
+
+    <script>
+        const { invoke } = window.__TAURI__.core;
+
+        async function loadInfo() {
+            try {
+                const info = await invoke('get_about_info');
+                document.getElementById('version').textContent = info.version;
+                document.getElementById('logo').src = info.icon_base64;
+                document.getElementById('year').textContent = new Date().getFullYear();
+            } catch (e) {
+                console.error('Failed to load about info:', e);
+                document.getElementById('version').textContent = 'Unknown';
+            }
+        }
+
+        // Wait for DOM
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadInfo);
+        } else {
+            loadInfo();
+        }
+    </script>
+</body>
+
+</html>

@@ -160,10 +160,11 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
     let show_item = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
     let pause_resume_item = MenuItem::with_id(app, "pause_resume", "Pause", true, None::<&str>)?;
     let prefs_item = MenuItem::with_id(app, "preferences", "Preferences", true, None::<&str>)?;
+    let about_item = MenuItem::with_id(app, "about", "About", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
     // Create menu
-    let menu = Menu::with_items(app, &[&show_item, &pause_resume_item, &prefs_item, &quit_item])?;
+    let menu = Menu::with_items(app, &[&show_item, &pause_resume_item, &prefs_item, &about_item, &quit_item])?;
 
     // Generate initial icon (full ring, work phase, not paused)
     let icon_data = generate_ring_icon(1.0, Phase::Work, false);
@@ -213,6 +214,11 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
                 "preferences" => {
                     if let Err(e) = crate::open_settings_window(app) {
                         eprintln!("Failed to open settings window: {}", e);
+                    }
+                }
+                "about" => {
+                    if let Err(e) = crate::about::open_about_window(app) {
+                        eprintln!("Failed to open about window: {}", e);
                     }
                 }
                 "quit" => {

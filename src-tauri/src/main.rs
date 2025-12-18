@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod config;
+mod about;
 mod input_blocker;
 mod timer;
 mod tray;
@@ -17,6 +18,27 @@ struct AppState {
     timer: Arc<Mutex<timer::TimerEngine>>,
     config: Arc<Mutex<config::Config>>,
     input_blocker: Arc<Mutex<input_blocker::InputBlocker>>,
+}
+
+#[derive(serde::Serialize)]
+struct AboutInfo {
+    version: String,
+    icon_base64: String,
+}
+
+#[tauri::command]
+async fn get_about_info(app: AppHandle) -> Result<AboutInfo, String> {
+    use base64::{engine::general_purpose, Engine as _};
+    
+    let version = app.package_info().version.to_string();
+    let icon_data = include_bytes!("../icons/icon.svg");
+    let icon_base64 = general_purpose::STANDARD.encode(icon_data);
+    let icon_src = format!("data:image/svg+xml;base64,{}", icon_base64);
+
+    Ok(AboutInfo {
+        version,
+        icon_base64: icon_src,
+    })
 }
 
 #[tauri::command]
@@ -359,7 +381,9 @@ fn main() {
             show_breakshield,
             hide_breakshield,
             show_settings,
+            show_settings,
             complete_break,
+            get_about_info,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
