@@ -4,10 +4,53 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+#[cfg(target_os = "windows")]
+use windows::Win32::Foundation::HINSTANCE;
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::WindowsAndMessaging::{
+    SetWindowsHookExW, UnhookWindowsHookEx, CallNextHookEx, HHOOK,
+    WH_KEYBOARD_LL, WH_MOUSE_LL, KBDLLHOOKSTRUCT, MSLLHOOKSTRUCT,
+    WINDOWS_HOOK_ID, HC_ACTION,
+};
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+
 pub struct InputBlocker {
     active: Arc<AtomicBool>,
     #[cfg(target_os = "linux")]
     x11: Option<X11GrabState>,
+    #[cfg(target_os = "windows")]
+    windows: Option<WindowsHookState>,
+}
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn keyboard_hook_proc(
+    code: i32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::LRESULT {
+    // If code is HC_ACTION, we should process the event
+    // Return non-zero to block the event from being passed to other applications
+    if code == HC_ACTION as i32 {
+        return windows::Win32::Foundation::LRESULT(1);
+    }
+    // Otherwise, call the next hook in the chain
+    CallNextHookEx(HHOOK::default(), code, wparam, lparam)
+}
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn mouse_hook_proc(
+    code: i32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::LRESULT {
+    // If code is HC_ACTION, we should process the event
+    // Return non-zero to block the event from being passed to other applications
+    if code == HC_ACTION as i32 {
+        return windows::Win32::Foundation::LRESULT(1);
+    }
+    // Otherwise, call the next hook in the chain
+    CallNextHookEx(HHOOK::default(), code, wparam, lparam)
 }
 
 #[cfg(target_os = "linux")]
@@ -17,6 +60,12 @@ struct X11GrabState {
     root: x11::xlib::Window,
 }
 
+#[cfg(target_os = "windows")]
+struct WindowsHookState {
+    keyboard_hook: HHOOK,
+    mouse_hook: HHOOK,
+}
+
 // We only access X11GrabState behind a mutex in AppState, and we never share the raw Display*
 // across threads without synchronization. Marking it Send/Sync is safe for this usage.
 #[cfg(target_os = "linux")]
@@ -24,9 +73,19 @@ unsafe impl Send for X11GrabState {}
 #[cfg(target_os = "linux")]
 unsafe impl Sync for X11GrabState {}
 
+#[cfg(target_os = "windows")]
+unsafe impl Send for WindowsHookState {}
+#[cfg(target_os = "windows")]
+unsafe impl Sync for WindowsHookState {}
+
 #[cfg(target_os = "linux")]
 unsafe impl Send for InputBlocker {}
 #[cfg(target_os = "linux")]
+unsafe impl Sync for InputBlocker {}
+
+#[cfg(target_os = "windows")]
+unsafe impl Send for InputBlocker {}
+#[cfg(target_os = "windows")]
 unsafe impl Sync for InputBlocker {}
 
 impl InputBlocker {
@@ -35,6 +94,8 @@ impl InputBlocker {
             active: Arc::new(AtomicBool::new(false)),
             #[cfg(target_os = "linux")]
             x11: None,
+            #[cfg(target_os = "windows")]
+            windows: None,
         }
     }
 
@@ -88,11 +149,44 @@ impl InputBlocker {
     }
 
     #[cfg(target_os = "windows")]
-    fn activate_windows(&self) -> Result<(), String> {
+    fn activate_windows(&mut self) -> Result<(), String> {
         // Windows implementation using low-level hooks
         // This requires SetWindowsHookEx with WH_KEYBOARD_LL and WH_MOUSE_LL
-        // For now, return placeholder - full implementation requires unsafe Windows API calls
-        println!("Windows input blocking activated (placeholder)");
+        
+        unsafe {
+            // Install keyboard hook
+            let keyboard_hook = SetWindowsHookExW(
+                WH_KEYBOARD_LL,
+                Some(keyboard_hook_proc),
+                HINSTANCE::default(),
+                0,
+            ).map_err(|e| format!("Failed to install keyboard hook: {:?}", e))?;
+            
+            // Install mouse hook
+            let mouse_hook = SetWindowsHookExW(
+                WH_MOUSE_LL,
+                Some(mouse_hook_proc),
+                HINSTANCE::default(),
+                0,
+            );
+            
+            // Handle partial failure: if mouse hook fails, clean up keyboard hook
+            let mouse_hook = match mouse_hook {
+                Ok(hook) => hook,
+                Err(e) => {
+                    // Clean up keyboard hook before returning error
+                    let _ = UnhookWindowsHookEx(keyboard_hook);
+                    return Err(format!("Failed to install mouse hook: {:?}", e));
+                }
+            };
+            
+            // Store hook handles
+            self.windows = Some(WindowsHookState {
+                keyboard_hook,
+                mouse_hook,
+            });
+        }
+        
         Ok(())
     }
 

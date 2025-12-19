@@ -1,12 +1,12 @@
 # Implementation Plan
 
-- [ ] 1. Implement Windows input blocking
-  - [ ] 1.1 Add Windows-specific state struct and imports
+- [-] 1. Implement Windows input blocking
+  - [x] 1.1 Add Windows-specific state struct and imports
     - Add `WindowsHookState` struct with `HHOOK` handles for keyboard and mouse
     - Add `windows` field to `InputBlocker` struct with `#[cfg(target_os = "windows")]`
     - Import required Windows API types from `windows` crate
     - _Requirements: 1.1, 1.2_
-  - [ ] 1.2 Implement `activate_windows()` with SetWindowsHookEx
+  - [-] 1.2 Implement `activate_windows()` with SetWindowsHookEx
     - Install keyboard hook using `SetWindowsHookExW` with `WH_KEYBOARD_LL`
     - Install mouse hook using `SetWindowsHookExW` with `WH_MOUSE_LL`
     - Implement hook callback functions that block events (return non-zero)
