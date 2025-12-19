@@ -1,8 +1,9 @@
 import { readFileSync } from 'fs';
+import path from 'path';
 import sharp from 'sharp';
 
 async function generateIcons() {
-  const svgBuffer = readFileSync('src-tauri/icons/icon.svg');
+  const svgBuffer = readFileSync(path.join('src-tauri', 'icons', 'icon.svg'));
 
   const sizes = [
     { size: 32, name: '32x32.png' },
@@ -14,7 +15,7 @@ async function generateIcons() {
     await sharp(svgBuffer)
       .resize(size, size)
       .png()
-      .toFile(`src-tauri/icons/${name}`);
+      .toFile(path.join('src-tauri', 'icons', name));
     console.log(`Generated ${name}`);
   }
 }

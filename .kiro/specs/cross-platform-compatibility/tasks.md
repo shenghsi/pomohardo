@@ -22,41 +22,41 @@
     - **Property 1: Activation-Deactivation Round Trip**
     - **Validates: Requirements 1.3**
 
-- [ ] 2. Implement macOS input blocking
-  - [ ] 2.1 Add macOS-specific state struct and imports
+- [ ] 2. Implement Windows emergency chord detection
+  - [x] 2.1 Implement `emergency_chord_pressed()` for Windows
+    - Use `GetAsyncKeyState` to query Ctrl, Alt, Shift, and E key states
+    - Return true only if all four keys are pressed simultaneously
+    - Handle the case where input blocking is active (chord should still be detectable)
+    - _Requirements: 3.1, 3.2, 3.3_
+  - [ ]* 2.2 Write property test for Windows chord detection
+    - **Property 2: Emergency Chord Detection Accuracy**
+    - **Validates: Requirements 3.3**
+
+- [x] 3. Checkpoint - Verify Windows implementation compiles
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 4. Implement macOS input blocking
+  - [ ] 4.1 Add macOS-specific state struct and imports
     - Add `MacOSEventTapState` struct with event tap and run loop source references
     - Add `macos` field to `InputBlocker` struct with `#[cfg(target_os = "macos")]`
     - Import required types from `core-graphics` and `core-foundation` crates
     - _Requirements: 2.1_
-  - [ ] 2.2 Implement `activate_macos()` with CGEventTapCreate
+  - [ ] 4.2 Implement `activate_macos()` with CGEventTapCreate
     - Create event tap using `CGEventTapCreate` with `kCGHeadInsertEventTap`
     - Configure tap to intercept keyboard and mouse events
     - Implement callback that suppresses events (return NULL)
     - Add tap to run loop for event processing
     - Handle permission errors with descriptive message
     - _Requirements: 2.1, 2.2, 2.4, 2.5_
-  - [ ] 2.3 Implement `deactivate_macos()` to release event tap
+  - [ ] 4.3 Implement `deactivate_macos()` to release event tap
     - Disable event tap using `CGEventTapEnable(tap, false)`
     - Remove from run loop
     - Release event tap reference
     - Clear `MacOSEventTapState` from struct
     - _Requirements: 2.3_
-  - [ ]* 2.4 Write property test for macOS activation round-trip
+  - [ ]* 4.4 Write property test for macOS activation round-trip
     - **Property 1: Activation-Deactivation Round Trip**
     - **Validates: Requirements 2.3**
-
-- [ ] 3. Checkpoint - Verify input blocking compiles
-  - Ensure all tests pass, ask the user if questions arise.
-
-- [ ] 4. Implement Windows emergency chord detection
-  - [x] 4.1 Implement `emergency_chord_pressed()` for Windows
-    - Use `GetAsyncKeyState` to query Ctrl, Alt, Shift, and E key states
-    - Return true only if all four keys are pressed simultaneously
-    - Handle the case where input blocking is active (chord should still be detectable)
-    - _Requirements: 3.1, 3.2, 3.3_
-  - [ ]* 4.2 Write property test for Windows chord detection
-    - **Property 2: Emergency Chord Detection Accuracy**
-    - **Validates: Requirements 3.3**
 
 - [ ] 5. Implement macOS emergency chord detection
   - [ ] 5.1 Implement `emergency_chord_pressed()` for macOS
@@ -87,12 +87,12 @@
     - _Requirements: 5.1, 5.2, 5.3_
 
 - [ ] 9. Fix icon generation script paths
-  - [ ] 9.1 Update generate-icons-simple.js with path.join()
+  - [x] 9.1 Update generate-icons-simple.js with path.join()
     - Import `path` module
     - Replace `'src-tauri/icons/icon.svg'` with `path.join('src-tauri', 'icons', 'icon.svg')`
     - Replace template literal paths with `path.join()` calls
     - _Requirements: 6.1, 6.3_
-  - [ ] 9.2 Update generate-icons.js with path.join()
+  - [x] 9.2 Update generate-icons.js with path.join()
     - Import `path` module
     - Replace hardcoded paths with `path.join()` calls
     - _Requirements: 6.2, 6.3_
@@ -101,7 +101,7 @@
     - **Validates: Requirements 6.1, 6.2, 6.3**
 
 - [ ] 10. Document Linux instance lock
-  - [ ] 10.1 Add documentation comments to acquire_instance_lock function
+  - [x] 10.1 Add documentation comments to acquire_instance_lock function
     - Explain why custom lock exists alongside tauri-plugin-single-instance
     - Document the race condition or edge case it addresses
     - Explain the relationship between the two mechanisms
@@ -115,5 +115,5 @@
     - **Property 5: Idempotent Deactivation**
     - **Validates: Requirements 1.3, 2.3**
 
-- [ ] 12. Final Checkpoint - Ensure all tests pass
+- [x] 12. Final Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.

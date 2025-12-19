@@ -242,6 +242,40 @@ async fn show_settings(app: tauri::AppHandle, _url: String) -> Result<(), String
     open_settings_window(&app)
 }
 
+/// Linux-specific single instance lock using filesystem-based locking.
+///
+/// This function works alongside `tauri-plugin-single-instance` to provide robust
+/// single-instance enforcement on Linux. While the Tauri plugin handles the primary
+/// single-instance logic, this filesystem lock addresses a specific race condition
+/// that can occur during rapid application restarts.
+///
+/// # Why Both Mechanisms Are Needed
+///
+/// The `tauri-plugin-single-instance` plugin uses inter-process communication (IPC)
+/// to detect running instances. However, there's a brief window during application
+/// shutdown where:
+/// 1. The first instance has released its IPC resources
+/// 2. But hasn't fully terminated yet
+/// 3. A second instance can start and pass the plugin's check
+/// 4. Both instances end up running simultaneously
+///
+/// This filesystem lock prevents that race by:
+/// - Creating an atomic lock directory in `/tmp/pomohardo_lock`
+/// - Writing the process PID to a file within that directory
+/// - Checking if the PID corresponds to a running process via `/proc/{pid}`
+/// - Cleaning up stale locks from crashed instances
+///
+/// # Lock Lifecycle
+///
+/// - **Acquisition**: Atomically creates lock directory, writes PID
+/// - **Validation**: Checks `/proc/{pid}` to verify process is alive
+/// - **Cleanup**: Removes stale locks from dead processes
+/// - **Release**: Lock is automatically released when process exits (OS cleans up `/tmp`)
+///
+/// # Returns
+///
+/// - `true` if this is the first/only instance (lock acquired)
+/// - `false` if another instance is already running (lock held by valid process)
 #[cfg(target_os = "linux")]
 fn acquire_instance_lock() -> bool {
     use std::fs;

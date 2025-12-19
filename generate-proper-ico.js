@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync } from 'fs';
+import path from 'path';
 import sharp from 'sharp';
 
-const svgPath = 'src-tauri/icons/icon.svg';
+const svgPath = path.join('src-tauri', 'icons', 'icon.svg');
 
 async function generateProperIco() {
   console.log('Generating proper ICO file for Windows...');
@@ -24,7 +25,7 @@ async function generateProperIco() {
     
     // Create ICO file manually
     const icoBuffer = createIcoFile(pngBuffers);
-    writeFileSync('src-tauri/icons/icon.ico', icoBuffer);
+    writeFileSync(path.join('src-tauri', 'icons', 'icon.ico'), icoBuffer);
     
     console.log('✓ Generated proper icon.ico file');
   } catch (err) {
