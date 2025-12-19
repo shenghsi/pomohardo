@@ -249,7 +249,71 @@ async fn show_settings(app: tauri::AppHandle, _url: String) -> Result<(), String
     open_settings_window(&app)
 }
 
+#[cfg(target_os = "linux")]
+fn acquire_instance_lock() -> bool {
+    use std::fs;
+    use std::path::Path;
+    use std::thread;
+    use std::time::Duration;
+
+    let lock_dir = std::env::temp_dir().join("pomohardo_lock");
+    let pid_file = lock_dir.join("pid");
+
+    // Try to create the directory - this is atomic
+    match fs::create_dir(&lock_dir) {
+        Ok(_) => {
+            // We succeeded, so we are the first instance.
+            let pid = std::process::id();
+            if let Err(e) = fs::write(&pid_file, pid.to_string()) {
+                eprintln!("Failed to write PID to lock file: {}", e);
+                // If we can't write, we should probably clean up and allow others (or fail).
+                // But failure to write to tmp is critical.
+            }
+            true
+        }
+        Err(_) => {
+            // Directory exists.
+            // 1. Check if the lock is held by a valid process.
+            // we loop a few times to handle the race where P1 created dir but hasn't written PID yet.
+            for _ in 0..10 {
+                if let Ok(content) = fs::read_to_string(&pid_file) {
+                    if let Ok(pid) = content.trim().parse::<i32>() {
+                        if Path::new(&format!("/proc/{}", pid)).exists() {
+                            eprintln!("Instance already running at PID {}", pid);
+                            return false; // Valid lock found, we are duplicate.
+                        } else {
+                            // PID file exists but process is dead. Stale lock.
+                            break; 
+                        }
+                    }
+                }
+                // PID file missing or unreadable (maybe P1 is writing). Wait and retry.
+                thread::sleep(Duration::from_millis(50));
+            }
+            
+            // If we are here, either the process is dead (stale) or we timed out waiting for PID file.
+            // We interpret this as "No valid instance running".
+            // Remove stale lock.
+            let _ = fs::remove_dir_all(&lock_dir);
+            
+            // Retry acquisition once
+            if fs::create_dir(&lock_dir).is_ok() {
+                let pid = std::process::id();
+                let _ = fs::write(&pid_file, pid.to_string());
+                return true;
+            }
+            // If retry failed, someone else grabbed it in the microsecond between remove and create.
+            // We assume they are valid.
+            false
+        }
+    }
+}
+
 fn main() {
+    #[cfg(target_os = "linux")]
+    if !acquire_instance_lock() {
+        std::process::exit(0);
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // When a second instance tries to start, bring the existing window to focus
@@ -266,6 +330,13 @@ fn main() {
             Some(vec!["--minimized"]),
         ))
         .setup(|app| {
+            // Prevent double initialization
+            use std::sync::atomic::{AtomicBool, Ordering};
+            static INITIALIZED: AtomicBool = AtomicBool::new(false);
+            if INITIALIZED.swap(true, Ordering::SeqCst) {
+                 return Ok(());
+            }
+
             // Check command line args for --minimized
             let args: Vec<String> = std::env::args().collect();
             let start_minimized = args.contains(&"--minimized".to_string());

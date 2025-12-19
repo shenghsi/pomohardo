@@ -5,7 +5,7 @@ use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, Emitter,
+    AppHandle, Manager, Emitter, Resource,
 };
 use tokio::sync::Mutex;
 
@@ -170,8 +170,13 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
     let icon_data = generate_ring_icon(1.0, Phase::Work, false);
     let icon = Image::from_bytes(&icon_data)?;
 
+    // Check for existing tray with our ID and remove it to prevent duplicates
+    if let Some(existing_tray) = app.tray_by_id("pomohardo-tray") {
+        let _ = Arc::new(existing_tray).close();
+    }
+
     // Build the tray icon
-    let tray = TrayIconBuilder::new()
+    let tray = TrayIconBuilder::with_id("pomohardo-tray")
         .icon(icon)
         .tooltip("Pomohardo")
         .menu(&menu)
