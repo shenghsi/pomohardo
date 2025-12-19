@@ -191,8 +191,24 @@ impl InputBlocker {
     }
 
     #[cfg(target_os = "windows")]
-    fn deactivate_windows(&self) -> Result<(), String> {
-        println!("Windows input blocking deactivated (placeholder)");
+    fn deactivate_windows(&mut self) -> Result<(), String> {
+        // Take ownership of the WindowsHookState to clear it
+        let Some(state) = self.windows.take() else {
+            // No hooks installed, nothing to do
+            return Ok(());
+        };
+        
+        unsafe {
+            // Remove keyboard hook
+            UnhookWindowsHookEx(state.keyboard_hook)
+                .map_err(|e| format!("Failed to remove keyboard hook: {:?}", e))?;
+            
+            // Remove mouse hook
+            UnhookWindowsHookEx(state.mouse_hook)
+                .map_err(|e| format!("Failed to remove mouse hook: {:?}", e))?;
+        }
+        
+        // WindowsHookState is automatically dropped here, clearing the struct
         Ok(())
     }
 

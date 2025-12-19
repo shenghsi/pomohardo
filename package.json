@@ -8,7 +8,7 @@
     "dev": "npm run sync-version && tauri dev",
     "build": "npm run sync-version && tauri build",
     "tauri": "tauri",
-    "generate-icons": "node generate-icons-simple.js",
+    "generate-icons": "node generate-proper-ico.js",
     "sync-version": "node scripts/sync-version.js",
     "version": "npm run sync-version && cd src-tauri && cargo generate-lockfile && cd .. && git add src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json || true",
     "postversion": "git push"
