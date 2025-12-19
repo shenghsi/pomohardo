@@ -49,7 +49,7 @@
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 4. Implement Windows emergency chord detection
-  - [ ] 4.1 Implement `emergency_chord_pressed()` for Windows
+  - [x] 4.1 Implement `emergency_chord_pressed()` for Windows
     - Use `GetAsyncKeyState` to query Ctrl, Alt, Shift, and E key states
     - Return true only if all four keys are pressed simultaneously
     - Handle the case where input blocking is active (chord should still be detectable)
@@ -70,7 +70,7 @@
     - **Validates: Requirements 4.3**
 
 - [ ] 6. Update main.rs emergency chord command
-  - [ ] 6.1 Remove platform-specific fallback in emergency_chord_pressed command
+  - [x] 6.1 Remove platform-specific fallback in emergency_chord_pressed command
     - Remove `#[cfg(not(target_os = "linux"))]` block that returns `Ok(false)`
     - Call `blocker.emergency_chord_pressed()` for all platforms
     - Ensure Windows and macOS implementations are called

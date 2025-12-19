@@ -153,14 +153,7 @@ async fn deactivate_input_blocking(state: tauri::State<'_, AppState>) -> Result<
 #[tauri::command]
 async fn emergency_chord_pressed(state: tauri::State<'_, AppState>) -> Result<bool, String> {
     let mut blocker = state.input_blocker.lock().await;
-    #[cfg(target_os = "linux")]
-    {
-        return blocker.emergency_chord_pressed();
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        Ok(false)
-    }
+    blocker.emergency_chord_pressed()
 }
 
 #[tauri::command]

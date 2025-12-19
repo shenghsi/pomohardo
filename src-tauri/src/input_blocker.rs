@@ -9,11 +9,8 @@ use windows::Win32::Foundation::HINSTANCE;
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     SetWindowsHookExW, UnhookWindowsHookEx, CallNextHookEx, HHOOK,
-    WH_KEYBOARD_LL, WH_MOUSE_LL, KBDLLHOOKSTRUCT, MSLLHOOKSTRUCT,
-    WINDOWS_HOOK_ID, HC_ACTION,
+    WH_KEYBOARD_LL, WH_MOUSE_LL, HC_ACTION,
 };
-#[cfg(target_os = "windows")]
-use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
 
 pub struct InputBlocker {
     active: Arc<AtomicBool>,
@@ -308,10 +305,27 @@ impl InputBlocker {
         Ok(())
     }
 
+    /// Check whether Ctrl+Alt+Shift+E is currently pressed.
+    /// This is used because input blocking can prevent the webview from receiving key events.
+    pub fn emergency_chord_pressed(&mut self) -> Result<bool, String> {
+        #[cfg(target_os = "linux")]
+        {
+            self.emergency_chord_pressed_linux()
+        }
+        #[cfg(target_os = "windows")]
+        {
+            self.emergency_chord_pressed_windows()
+        }
+        #[cfg(target_os = "macos")]
+        {
+            self.emergency_chord_pressed_macos()
+        }
+    }
+
     /// Linux/X11 only: check whether Ctrl+Alt+Shift+E is currently pressed.
     /// This is used because X11 grabs can prevent the webview from receiving key events.
     #[cfg(target_os = "linux")]
-    pub fn emergency_chord_pressed(&mut self) -> Result<bool, String> {
+    fn emergency_chord_pressed_linux(&mut self) -> Result<bool, String> {
         let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
         if session_type == "wayland" {
             return Ok(false);
@@ -359,6 +373,35 @@ impl InputBlocker {
 
             Ok(ctrl && alt && shift && e)
         }
+    }
+
+    /// Windows: check whether Ctrl+Alt+Shift+E is currently pressed.
+    /// Uses GetAsyncKeyState to query key states even when input blocking is active.
+    #[cfg(target_os = "windows")]
+    fn emergency_chord_pressed_windows(&mut self) -> Result<bool, String> {
+        use windows::Win32::UI::Input::KeyboardAndMouse::{
+            GetAsyncKeyState, VK_CONTROL, VK_MENU, VK_SHIFT, VK_E
+        };
+
+        unsafe {
+            // GetAsyncKeyState returns the key state since the last call
+            // High bit (0x8000) indicates if key is currently pressed
+            let ctrl_pressed = (GetAsyncKeyState(VK_CONTROL.0 as i32) & 0x8000u16 as i16) != 0;
+            let alt_pressed = (GetAsyncKeyState(VK_MENU.0 as i32) & 0x8000u16 as i16) != 0;
+            let shift_pressed = (GetAsyncKeyState(VK_SHIFT.0 as i32) & 0x8000u16 as i16) != 0;
+            let e_pressed = (GetAsyncKeyState(VK_E.0 as i32) & 0x8000u16 as i16) != 0;
+
+            Ok(ctrl_pressed && alt_pressed && shift_pressed && e_pressed)
+        }
+    }
+
+    /// macOS: check whether Ctrl+Alt+Shift+E is currently pressed.
+    /// Uses Core Graphics to query key states even when input blocking is active.
+    #[cfg(target_os = "macos")]
+    fn emergency_chord_pressed_macos(&mut self) -> Result<bool, String> {
+        // TODO: Implement using CGEventSourceFlagsState and appropriate key state APIs
+        // For now, return false as placeholder
+        Ok(false)
     }
 }
 
