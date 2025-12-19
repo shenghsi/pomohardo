@@ -10,7 +10,7 @@
     "tauri": "tauri",
     "generate-icons": "node generate-icons-simple.js",
     "sync-version": "node scripts/sync-version.js",
-    "version": "npm run sync-version && git add src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json || true",
+    "version": "npm run sync-version && cd src-tauri && cargo generate-lockfile && cd .. && git add src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json || true",
     "postversion": "git push"
   },
   "dependencies": {
