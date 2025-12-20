@@ -1,6 +1,6 @@
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
-pub const ABOUT_WINDOW_WIDTH: f64 = 440.0;
+pub const ABOUT_WINDOW_WIDTH: f64 = 450.0;
 pub const ABOUT_WINDOW_HEIGHT: f64 = 300.0;
 
 pub fn open_about_window(app: &AppHandle) -> Result<(), String> {

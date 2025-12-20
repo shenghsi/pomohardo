@@ -11,11 +11,13 @@ use tokio::sync::Mutex;
 
 use crate::timer::{Phase, TimerEngine, TimerStatus};
 
-const ICON_SIZE: u32 = 32;
+const ICON_SIZE: u32 = 36;
 const RING_WIDTH: f32 = 4.0;
 const CENTER: f32 = (ICON_SIZE as f32) / 2.0;
-const RADIUS: f32 = CENTER - RING_WIDTH / 2.0 - 1.0;
+const RADIUS: f32 = CENTER - RING_WIDTH / 2.0 - 3.0;
 
+// Background color (matches icon.svg background)
+const BACKGROUND_COLOR: Rgba<u8> = Rgba([44, 62, 80, 255]); // #2c3e50
 // Tomato/pomodoro color for work phase
 const WORK_COLOR: Rgba<u8> = Rgba([231, 76, 60, 255]); // #E74C3C
 // Gray for the track (matches work session background ring)
@@ -86,6 +88,29 @@ fn draw_play_symbol(img: &mut RgbaImage, color: Rgba<u8>) {
 /// If paused, shows a play symbol in the center
 pub fn generate_ring_icon(progress: f32, phase: Phase, is_paused: bool) -> Vec<u8> {
     let mut img: RgbaImage = ImageBuffer::new(ICON_SIZE, ICON_SIZE);
+
+    // Fill a circular background with #2c3e50, leave corners transparent
+    let bg_radius = CENTER - 0.5; // Slightly smaller to ensure clean edges
+    for y in 0..ICON_SIZE {
+        for x in 0..ICON_SIZE {
+            let dx = x as f32 - CENTER + 0.5; // Center of pixel
+            let dy = y as f32 - CENTER + 0.5;
+            let dist = (dx * dx + dy * dy).sqrt();
+            
+            if dist <= bg_radius {
+                // Anti-aliasing at the edge
+                let edge_dist = bg_radius - dist;
+                if edge_dist < 1.0 {
+                    let mut color = BACKGROUND_COLOR;
+                    color.0[3] = (255.0 * edge_dist) as u8;
+                    img.put_pixel(x, y, color);
+                } else {
+                    img.put_pixel(x, y, BACKGROUND_COLOR);
+                }
+            }
+            // Pixels outside the circle remain transparent (alpha = 0)
+        }
+    }
 
     // Determine ring color based on phase
     let ring_color = match phase {
