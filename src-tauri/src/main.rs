@@ -424,16 +424,12 @@ fn main() {
                 
                 // Set the menu
                 app.set_menu(menu)?;
-                eprintln!("Custom macOS menu set successfully with controlled Quit item");
                 
                 // Handle custom quit menu item
                 app.on_menu_event(move |app, event| {
-                    eprintln!("Menu event received: {:?}", event.id());
                     if event.id().as_ref() == "quit" {
-                        eprintln!("Custom Quit menu item triggered");
                         // Check if breakshield is active
                         if app.get_webview_window("breakshield").is_some() {
-                            eprintln!("Cannot quit during break - break enforcement is active");
                             // Refocus breakshield
                             if let Some(breakshield) = app.get_webview_window("breakshield") {
                                 let _ = breakshield.set_always_on_top(true);
@@ -441,7 +437,6 @@ fn main() {
                             }
                         } else {
                             // Allow quit when not in break
-                            eprintln!("Allowing quit - no break active");
                             app.exit(0);
                         }
                     }
@@ -505,23 +500,11 @@ fn main() {
                             // This allows user interaction when break time is up
                             let blocker_active = {
                                 let blocker = futures::executor::block_on(input_blocker_for_focus.lock());
-                                let active = blocker.is_active();
-                                active
+                                blocker.is_active()
                             };
                             
                             if !blocker_active {
                                 // Input blocking is deactivated (break time is up), don't enforce focus
-                                // Log occasionally to avoid spam
-                                static LAST_LOG: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-                                let now = std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_secs();
-                                let last = LAST_LOG.load(std::sync::atomic::Ordering::Relaxed);
-                                if now > last + 2 {
-                                    LAST_LOG.store(now, std::sync::atomic::Ordering::Relaxed);
-                                    eprintln!("Focus enforcement: blocker inactive, allowing user interaction");
-                                }
                                 continue;
                             }
                             
@@ -619,16 +602,12 @@ fn main() {
             match &event {
                 #[cfg(target_os = "macos")]
                 RunEvent::Ready => {
-                    eprintln!("App ready - custom menu should be active");
+                    // macOS menu is ready
                 }
-                RunEvent::ExitRequested { api, code, .. } => {
+                RunEvent::ExitRequested { api, .. } => {
                     // Prevent quit when breakshield is active (break enforcement)
-                    let breakshield_active = app_handle.get_webview_window("breakshield").is_some();
-                    eprintln!("ExitRequested event received, breakshield_active: {}, code: {:?}", breakshield_active, code);
-                    
-                    if breakshield_active {
+                    if app_handle.get_webview_window("breakshield").is_some() {
                         api.prevent_exit();
-                        eprintln!("Prevented exit - break enforcement is active");
                         // Refocus the breakshield window
                         if let Some(breakshield) = app_handle.get_webview_window("breakshield") {
                             let _ = breakshield.set_always_on_top(true);
@@ -641,20 +620,17 @@ fn main() {
                     event: WindowEvent::CloseRequested { api, .. },
                     ..
                 } => {
-                    eprintln!("CloseRequested event for window: {}", label);
-                    let breakshield_exists = app_handle.get_webview_window("breakshield").is_some();
-                    
                     // If this IS the breakshield window being closed, allow it
                     // (This happens when break time is up and user interacts)
                     if label == "breakshield" {
-                        eprintln!("Allowing breakshield window to close");
                         return;
                     }
+                    
+                    let breakshield_exists = app_handle.get_webview_window("breakshield").is_some();
                     
                     // During break (breakshield exists), prevent closing other windows
                     if breakshield_exists {
                         api.prevent_close();
-                        eprintln!("Prevented close - break enforcement is active");
                         // Refocus the breakshield window
                         if let Some(breakshield) = app_handle.get_webview_window("breakshield") {
                             let _ = breakshield.set_always_on_top(true);
@@ -676,10 +652,11 @@ fn main() {
                     event: WindowEvent::Destroyed,
                     ..
                 } => {
-                    eprintln!("Window destroyed: {}", label);
+                    // Window destroyed - no action needed
+                    let _ = label; // Suppress unused warning
                 }
                 RunEvent::Exit => {
-                    eprintln!("RunEvent::Exit received - app is exiting");
+                    // App is exiting
                 }
                 _ => {}
             }

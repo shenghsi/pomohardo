@@ -211,17 +211,14 @@ impl InputBlocker {
 
     #[cfg(target_os = "macos")]
     fn activate_macos(&self) -> Result<(), String> {
-        // macOS implementation using event taps (CGEventTap)
-        // This requires Accessibility permissions
-        // For now, we'll use a simpler approach - keep the breakshield window
-        // always on top and focused, and periodically refocus it
-        eprintln!("macOS input blocking activated - active flag set to true");
+        // macOS: Focus enforcement is handled by a separate thread in main.rs
+        // that keeps the breakshield window always on top and focused
         Ok(())
     }
 
     #[cfg(target_os = "macos")]
     fn deactivate_macos(&self) -> Result<(), String> {
-        eprintln!("macOS input blocking deactivated - active flag set to false");
+        // macOS: Focus enforcement thread checks is_active() and stops enforcing
         Ok(())
     }
 
@@ -425,10 +422,6 @@ impl InputBlocker {
             let e_pressed = CGEventSourceKeyState(0, 14);
             
             let result = cmd_pressed && option_pressed && shift_pressed && e_pressed;
-            
-            if result {
-                eprintln!("Emergency chord detected: Cmd+Option+Shift+E");
-            }
             
             Ok(result)
         }
