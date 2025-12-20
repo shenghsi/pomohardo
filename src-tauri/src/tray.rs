@@ -182,8 +182,20 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| {
+            // Check if breakshield window is open (break is active)
+            // During breaks, only allow viewing the break overlay - no other actions
+            let is_break_active = app.get_webview_window("breakshield").is_some();
+            
             match event.id.as_ref() {
                 "show" => {
+                    if is_break_active {
+                        // During break, focus the breakshield window instead
+                        if let Some(breakshield) = app.get_webview_window("breakshield") {
+                            let _ = breakshield.show();
+                            let _ = breakshield.set_focus();
+                        }
+                        return;
+                    }
                     if let Some(window) = app.get_webview_window("main") {
                         let _ = window.unminimize();
                         let _ = window.show();
@@ -191,6 +203,11 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
                     }
                 }
                 "pause_resume" => {
+                    if is_break_active {
+                        // Cannot pause/resume during break
+                        eprintln!("Cannot pause/resume during break - break enforcement is active");
+                        return;
+                    }
                             // Toggle pause/resume based on current timer state
                             let app_handle = app.clone();
                             tauri::async_runtime::spawn(async move {
@@ -217,16 +234,31 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
                             });
                 }
                 "preferences" => {
+                    if is_break_active {
+                        // Cannot open preferences during break
+                        eprintln!("Cannot open preferences during break - break enforcement is active");
+                        return;
+                    }
                     if let Err(e) = crate::open_settings_window(app) {
                         eprintln!("Failed to open settings window: {}", e);
                     }
                 }
                 "about" => {
+                    if is_break_active {
+                        // Cannot open about during break
+                        eprintln!("Cannot open about during break - break enforcement is active");
+                        return;
+                    }
                     if let Err(e) = crate::about::open_about_window(app) {
                         eprintln!("Failed to open about window: {}", e);
                     }
                 }
                 "quit" => {
+                    if is_break_active {
+                        // Cannot quit during break
+                        eprintln!("Cannot quit during break - break enforcement is active");
+                        return;
+                    }
                     app.exit(0);
                 }
                 _ => {}
@@ -240,6 +272,15 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
             } = event
             {
                 let app = tray.app_handle();
+                
+                // Check if breakshield window is open (break is active)
+                if let Some(breakshield) = app.get_webview_window("breakshield") {
+                    // During break, focus the breakshield window instead of toggling main
+                    let _ = breakshield.show();
+                    let _ = breakshield.set_focus();
+                    return;
+                }
+                
                 if let Some(window) = app.get_webview_window("main") {
                     if window.is_visible().unwrap_or(false) {
                         let _ = window.hide();

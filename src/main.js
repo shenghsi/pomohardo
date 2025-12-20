@@ -73,14 +73,8 @@ function createBreakScreen() {
             </div>
 
             <div class="break-time-up-container hidden" id="breakTimeUpContainer">
-                <p class="break-time-up-msg">Break complete!<br>Touch keyboard or move mouse to start work session.</p>
-            </div>
-            
-            <!-- Temporary test button for emergency skip (development only) -->
-            <div class="test-emergency-container" style="position: absolute; bottom: 20px; right: 20px;">
-                <button id="testEmergencyBtn" class="test-emergency-btn" style="background: #ff4444; color: white; padding: 10px; border: none; border-radius: 5px; font-size: 12px;">
-                    Test Emergency Skip
-                </button>
+                <p class="break-time-up-msg">Break complete!<br>Click the button or press any key to start work session.</p>
+                <button class="start-work-btn" id="startWorkBtn">Start Work Session</button>
             </div>
         </div>
     `;
@@ -162,17 +156,6 @@ function setupEventListeners() {
     // Emergency skip with hold chord + confirm word (breakshield only)
     if (IS_BREAKSHIELD) {
         setupEmergencySkip();
-        
-        // Add test button listener (temporary for development)
-        const testEmergencyBtn = document.getElementById('testEmergencyBtn');
-        if (testEmergencyBtn) {
-            testEmergencyBtn.addEventListener('click', async () => {
-                // Simulate the emergency skip confirmation flow
-                if (window.triggerEmergencySkipTest) {
-                    await window.triggerEmergencySkipTest();
-                }
-            });
-        }
     }
 }
 
@@ -183,6 +166,86 @@ function setupEmergencySkip() {
     let isHolding = false;
     let isArmed = false;  // true once hold is complete and confirm word input is shown
     let confirmTimeout = null;  // timeout for confirm word input
+    
+    // JavaScript-side key detection for macOS (and fallback for other platforms)
+    let keyState = {
+        cmd: false,
+        ctrl: false,
+        alt: false,
+        option: false,
+        shift: false,
+        e: false
+    };
+    
+    // Global key event listeners to track key state
+    const keyDownHandler = (e) => {
+        // Prevent default behavior for our emergency combo
+        const platform = navigator.platform.toLowerCase();
+        const isEmergencyCombo = platform.includes('mac') 
+            ? (e.metaKey && e.altKey && e.shiftKey && e.key.toLowerCase() === 'e')
+            : (e.ctrlKey && e.altKey && e.shiftKey && e.key.toLowerCase() === 'e');
+            
+        if (isEmergencyCombo) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        keyState.cmd = e.metaKey;
+        keyState.ctrl = e.ctrlKey;
+        keyState.alt = e.altKey;
+        keyState.option = e.altKey; // Alt and Option are the same key
+        keyState.shift = e.shiftKey;
+        if (e.key.toLowerCase() === 'e') {
+            keyState.e = true;
+        }
+        
+        // Debug logging for macOS
+        if (platform.includes('mac') && (e.metaKey || e.altKey || e.shiftKey || e.key.toLowerCase() === 'e')) {
+            console.log('Key state:', {
+                cmd: keyState.cmd,
+                option: keyState.option,
+                shift: keyState.shift,
+                e: keyState.e,
+                key: e.key,
+                combo: isEmergencyCombo
+            });
+        }
+    };
+    
+    const keyUpHandler = (e) => {
+        keyState.cmd = e.metaKey;
+        keyState.ctrl = e.ctrlKey;
+        keyState.alt = e.altKey;
+        keyState.option = e.altKey;
+        keyState.shift = e.shiftKey;
+        if (e.key.toLowerCase() === 'e') {
+            keyState.e = false;
+        }
+    };
+    
+    // Add global key listeners with capture to catch events before they're blocked
+    document.addEventListener('keydown', keyDownHandler, { capture: true, passive: false });
+    document.addEventListener('keyup', keyUpHandler, { capture: true, passive: false });
+    
+    // Also add to window for broader coverage
+    window.addEventListener('keydown', keyDownHandler, { capture: true, passive: false });
+    window.addEventListener('keyup', keyUpHandler, { capture: true, passive: false });
+    
+    // Function to check if the correct key combination is pressed
+    const isEmergencyChordPressed = () => {
+        const platform = navigator.platform.toLowerCase();
+        if (platform.includes('mac')) {
+            // macOS: Cmd+Option+Shift+E
+            const result = keyState.cmd && keyState.option && keyState.shift && keyState.e;
+            if (result) {
+                console.log('Emergency chord detected on macOS!');
+            }
+            return result;
+        } else {
+            // Windows/Linux: Ctrl+Alt+Shift+E
+            return keyState.ctrl && keyState.alt && keyState.shift && keyState.e;
+        }
+    };
 
     // Show emergency skip UI when break overlay is shown
     const showEmergencySkipUI = () => {
@@ -271,7 +334,26 @@ function setupEmergencySkip() {
                 if (!emergencySkipContainer || emergencySkipContainer.classList.contains('hidden')) return;
                 if (isArmed) return;
 
-                const pressed = await invoke('emergency_chord_pressed');
+                // Try backend detection first (works for all platforms now)
+                let pressed = false;
+                try {
+                    pressed = await invoke('emergency_chord_pressed');
+                } catch (e) {
+                    console.error('Backend chord detection failed:', e);
+                    // Fall back to JavaScript detection
+                    pressed = isEmergencyChordPressed();
+                }
+                
+                // If backend returns false, also try JavaScript as fallback
+                if (!pressed) {
+                    pressed = isEmergencyChordPressed();
+                }
+                
+                // Debug logging
+                if (pressed) {
+                    console.log('Emergency chord detected!');
+                }
+
                 const currentConfig = await invoke('get_config');
                 const holdDuration = (currentConfig.emergency_hold_seconds || 4) * 1000;
 
@@ -419,42 +501,14 @@ function setupEmergencySkip() {
         hideEmergencySkipUI();
     };
     
-    // Test function to trigger emergency skip confirmation (temporary for development)
-    window.triggerEmergencySkipTest = async () => {
-        try {
-            const currentConfig = await invoke('get_config');
-            
-            // Skip the hold phase and go directly to confirmation
-            isArmed = true;
-            stopChordPolling();
-            
-            if (emergencyHoldInstruction) emergencyHoldInstruction.classList.add('hidden');
-            if (holdProgressContainer) holdProgressContainer.classList.add('hidden');
-            confirmWordContainer.classList.remove('hidden');
-            
-            // Update the confirm instruction with the configured word
-            if (confirmInstruction) {
-                confirmInstruction.innerHTML = `Type <strong>${currentConfig.emergency_confirm_word || 'SKIPBREAK'}</strong> to confirm:`;
-            }
-            
-            // Temporarily allow typing by releasing grabs
-            try { await invoke('deactivate_input_blocking'); } catch (_) { }
-            
-            confirmWordInput.value = '';
-            setTimeout(() => confirmWordInput.focus(), 100);
-            
-            // Start confirm timeout
-            const timeoutSeconds = currentConfig.emergency_confirm_timeout_seconds || 15;
-            confirmTimeout = setTimeout(async () => {
-                resetToHoldState();
-                // Re-enable blocking if still in break
-                try { await invoke('activate_input_blocking'); } catch (_) { }
-                startChordPolling();
-            }, timeoutSeconds * 1000);
-            
-        } catch (error) {
-            console.error('Test emergency skip failed:', error);
-        }
+    // Cleanup function to remove event listeners
+    window.cleanupEmergencySkip = () => {
+        document.removeEventListener('keydown', keyDownHandler, { capture: true });
+        document.removeEventListener('keyup', keyUpHandler, { capture: true });
+        window.removeEventListener('keydown', keyDownHandler, { capture: true });
+        window.removeEventListener('keyup', keyUpHandler, { capture: true });
+        stopChordPolling();
+        hideEmergencySkipUI();
     };
 }
 
@@ -701,26 +755,59 @@ let breakTimeUpHandled = false;
 
 async function handleBreakTimeUp() {
     // Only run once per break completion
-    if (breakTimeUpHandled) return;
+    if (breakTimeUpHandled) {
+        console.log('handleBreakTimeUp already handled, skipping');
+        return;
+    }
     breakTimeUpHandled = true;
 
-    console.log('Break time is up - deactivating input blocking and setting up listeners');
+    console.log('=== Break time is up ===');
+    console.log('Deactivating input blocking and setting up listeners');
 
     // Hide emergency skip UI
     if (window.hideEmergencySkipUI) {
         window.hideEmergencySkipUI();
+        console.log('Emergency skip UI hidden');
     }
 
     // Deactivate input blocking to allow user interaction
     try {
         await invoke('deactivate_input_blocking');
-        console.log('Input blocking deactivated');
+        console.log('Input blocking deactivated successfully');
     } catch (error) {
         console.error('Failed to deactivate input blocking:', error);
     }
 
     // Set up one-time listener for any user interaction
     setupBreakCompleteListener();
+    
+    // Also add a direct click handler to the break overlay as a fallback
+    if (breakOverlay) {
+        breakOverlay.style.cursor = 'pointer';
+        breakOverlay.onclick = async (e) => {
+            console.log('Break overlay clicked directly');
+            await completeBreakAndDismiss();
+        };
+    }
+    
+    console.log('=== Ready for user interaction ===');
+}
+
+// Helper function to complete break and dismiss breakshield
+async function completeBreakAndDismiss() {
+    console.log('Completing break and dismissing breakshield...');
+    try {
+        await invoke('complete_break');
+        console.log('complete_break invoked successfully');
+        await invoke('hide_breakshield');
+        console.log('hide_breakshield invoked');
+        // Close this window
+        const { getCurrentWindow } = window.__TAURI__.window;
+        const appWindow = getCurrentWindow();
+        await appWindow.close();
+    } catch (error) {
+        console.error('Failed to complete break:', error);
+    }
 }
 
 // Set up listener for user interaction to complete break
@@ -732,46 +819,67 @@ function setupBreakCompleteListener() {
 
     console.log('Setting up break complete listeners');
 
-    const handleInteraction = async () => {
-        console.log('User interaction detected, completing break...');
-        try {
-            await invoke('complete_break');
-            await updateTimerState();
-        } catch (error) {
-            console.error('Failed to complete break:', error);
-        }
+    const handleInteraction = async (eventType) => {
+        console.log(`User interaction detected (${eventType}), completing break...`);
+        
+        // Remove listeners immediately to prevent multiple calls
+        removeBreakCompleteListener();
+        
+        await completeBreakAndDismiss();
     };
 
     // Listen for keyboard and mouse events
     const keyHandler = (e) => {
         console.log('Key pressed:', e.key);
-        handleInteraction();
+        handleInteraction('keydown');
     };
 
     const mouseHandler = (e) => {
-        console.log('Mouse moved');
-        handleInteraction();
+        console.log('Mouse moved at:', e.clientX, e.clientY);
+        handleInteraction('mousemove');
     };
 
     const clickHandler = (e) => {
-        console.log('Mouse clicked');
-        handleInteraction();
+        console.log('Mouse clicked at:', e.clientX, e.clientY);
+        handleInteraction('click');
     };
 
-    document.addEventListener('keydown', keyHandler, { once: true });
-    document.addEventListener('mousemove', mouseHandler, { once: true });
-    document.addEventListener('click', clickHandler, { once: true });
+    // Use capture phase to ensure we get events even if something else is blocking them
+    document.addEventListener('keydown', keyHandler, { capture: true });
+    document.addEventListener('mousemove', mouseHandler, { capture: true });
+    document.addEventListener('click', clickHandler, { capture: true });
+    
+    // Also add to window for broader coverage
+    window.addEventListener('keydown', keyHandler, { capture: true });
+    window.addEventListener('mousemove', mouseHandler, { capture: true });
+    window.addEventListener('click', clickHandler, { capture: true });
+    
+    // Add click handler to the Start Work button
+    const startWorkBtn = document.getElementById('startWorkBtn');
+    if (startWorkBtn) {
+        startWorkBtn.addEventListener('click', (e) => {
+            console.log('Start Work button clicked');
+            e.stopPropagation();
+            handleInteraction('button-click');
+        });
+    }
 
     // Store handlers so we can remove them later if needed
     breakCompleteHandlers = { keyHandler, mouseHandler, clickHandler };
+    
+    console.log('Break complete listeners set up successfully');
 }
 
 function removeBreakCompleteListener() {
     if (breakCompleteHandlers) {
-        document.removeEventListener('keydown', breakCompleteHandlers.keyHandler);
-        document.removeEventListener('mousemove', breakCompleteHandlers.mouseHandler);
-        document.removeEventListener('click', breakCompleteHandlers.clickHandler);
+        document.removeEventListener('keydown', breakCompleteHandlers.keyHandler, { capture: true });
+        document.removeEventListener('mousemove', breakCompleteHandlers.mouseHandler, { capture: true });
+        document.removeEventListener('click', breakCompleteHandlers.clickHandler, { capture: true });
+        window.removeEventListener('keydown', breakCompleteHandlers.keyHandler, { capture: true });
+        window.removeEventListener('mousemove', breakCompleteHandlers.mouseHandler, { capture: true });
+        window.removeEventListener('click', breakCompleteHandlers.clickHandler, { capture: true });
         breakCompleteHandlers = null;
+        console.log('Break complete listeners removed');
     }
 }
 

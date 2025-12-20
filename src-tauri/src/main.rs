@@ -363,6 +363,91 @@ fn main() {
                  return Ok(());
             }
 
+            // macOS: Create custom app menu with controlled Quit behavior
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{Menu, Submenu, MenuItem, PredefinedMenuItem};
+                
+                let app_handle = app.handle();
+                
+                // Create custom Quit menu item
+                let quit_item = MenuItem::with_id(app_handle, "quit", "Quit Pomohardo", true, Some("Cmd+Q"))?;
+                
+                // Create app submenu
+                let app_submenu = Submenu::with_items(
+                    app_handle,
+                    "Pomohardo",
+                    true,
+                    &[
+                        &PredefinedMenuItem::about(app_handle, Some("About Pomohardo"), None)?,
+                        &PredefinedMenuItem::separator(app_handle)?,
+                        &PredefinedMenuItem::services(app_handle, None)?,
+                        &PredefinedMenuItem::separator(app_handle)?,
+                        &PredefinedMenuItem::hide(app_handle, None)?,
+                        &PredefinedMenuItem::hide_others(app_handle, None)?,
+                        &PredefinedMenuItem::show_all(app_handle, None)?,
+                        &PredefinedMenuItem::separator(app_handle)?,
+                        &quit_item,
+                    ],
+                )?;
+                
+                // Create Edit submenu for standard text editing
+                let edit_submenu = Submenu::with_items(
+                    app_handle,
+                    "Edit",
+                    true,
+                    &[
+                        &PredefinedMenuItem::undo(app_handle, None)?,
+                        &PredefinedMenuItem::redo(app_handle, None)?,
+                        &PredefinedMenuItem::separator(app_handle)?,
+                        &PredefinedMenuItem::cut(app_handle, None)?,
+                        &PredefinedMenuItem::copy(app_handle, None)?,
+                        &PredefinedMenuItem::paste(app_handle, None)?,
+                        &PredefinedMenuItem::select_all(app_handle, None)?,
+                    ],
+                )?;
+                
+                // Create Window submenu
+                let window_submenu = Submenu::with_items(
+                    app_handle,
+                    "Window",
+                    true,
+                    &[
+                        &PredefinedMenuItem::minimize(app_handle, None)?,
+                        &PredefinedMenuItem::maximize(app_handle, None)?,
+                        &PredefinedMenuItem::close_window(app_handle, None)?,
+                    ],
+                )?;
+                
+                // Build the menu
+                let menu = Menu::with_items(app_handle, &[&app_submenu, &edit_submenu, &window_submenu])?;
+                
+                // Set the menu
+                app.set_menu(menu)?;
+                eprintln!("Custom macOS menu set successfully with controlled Quit item");
+                
+                // Handle custom quit menu item
+                app.on_menu_event(move |app, event| {
+                    eprintln!("Menu event received: {:?}", event.id());
+                    if event.id().as_ref() == "quit" {
+                        eprintln!("Custom Quit menu item triggered");
+                        // Check if breakshield is active
+                        if app.get_webview_window("breakshield").is_some() {
+                            eprintln!("Cannot quit during break - break enforcement is active");
+                            // Refocus breakshield
+                            if let Some(breakshield) = app.get_webview_window("breakshield") {
+                                let _ = breakshield.set_always_on_top(true);
+                                let _ = breakshield.set_focus();
+                            }
+                        } else {
+                            // Allow quit when not in break
+                            eprintln!("Allowing quit - no break active");
+                            app.exit(0);
+                        }
+                    }
+                });
+            }
+
             // Check command line args for --minimized
             let args: Vec<String> = std::env::args().collect();
             let start_minimized = args.contains(&"--minimized".to_string());
@@ -405,6 +490,52 @@ fn main() {
                     }
                 });
             });
+
+            // macOS: Fast focus enforcement thread to prevent Cmd+Tab escape
+            #[cfg(target_os = "macos")]
+            {
+                let app_handle_focus = app.handle().clone();
+                let input_blocker_for_focus = app_state.input_blocker.clone();
+                std::thread::spawn(move || {
+                    loop {
+                        std::thread::sleep(Duration::from_millis(100)); // Check every 100ms
+                        
+                        if let Some(breakshield) = app_handle_focus.get_webview_window("breakshield") {
+                            // Check if input blocking is active - if not, don't enforce focus
+                            // This allows user interaction when break time is up
+                            let blocker_active = {
+                                let blocker = futures::executor::block_on(input_blocker_for_focus.lock());
+                                let active = blocker.is_active();
+                                active
+                            };
+                            
+                            if !blocker_active {
+                                // Input blocking is deactivated (break time is up), don't enforce focus
+                                // Log occasionally to avoid spam
+                                static LAST_LOG: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+                                let now = std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_secs();
+                                let last = LAST_LOG.load(std::sync::atomic::Ordering::Relaxed);
+                                if now > last + 2 {
+                                    LAST_LOG.store(now, std::sync::atomic::Ordering::Relaxed);
+                                    eprintln!("Focus enforcement: blocker inactive, allowing user interaction");
+                                }
+                                continue;
+                            }
+                            
+                            // Check if breakshield has focus, if not, refocus it
+                            if let Ok(is_focused) = breakshield.is_focused() {
+                                if !is_focused {
+                                    let _ = breakshield.set_always_on_top(true);
+                                    let _ = breakshield.set_focus();
+                                }
+                            }
+                        }
+                    }
+                });
+            }
 
             // Background task to check timer state and trigger transitions
             std::thread::spawn(move || {
@@ -485,12 +616,53 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
-            match event {
+            match &event {
+                #[cfg(target_os = "macos")]
+                RunEvent::Ready => {
+                    eprintln!("App ready - custom menu should be active");
+                }
+                RunEvent::ExitRequested { api, code, .. } => {
+                    // Prevent quit when breakshield is active (break enforcement)
+                    let breakshield_active = app_handle.get_webview_window("breakshield").is_some();
+                    eprintln!("ExitRequested event received, breakshield_active: {}, code: {:?}", breakshield_active, code);
+                    
+                    if breakshield_active {
+                        api.prevent_exit();
+                        eprintln!("Prevented exit - break enforcement is active");
+                        // Refocus the breakshield window
+                        if let Some(breakshield) = app_handle.get_webview_window("breakshield") {
+                            let _ = breakshield.set_always_on_top(true);
+                            let _ = breakshield.set_focus();
+                        }
+                    }
+                }
                 RunEvent::WindowEvent {
                     label,
                     event: WindowEvent::CloseRequested { api, .. },
                     ..
                 } => {
+                    eprintln!("CloseRequested event for window: {}", label);
+                    let breakshield_exists = app_handle.get_webview_window("breakshield").is_some();
+                    
+                    // If this IS the breakshield window being closed, allow it
+                    // (This happens when break time is up and user interacts)
+                    if label == "breakshield" {
+                        eprintln!("Allowing breakshield window to close");
+                        return;
+                    }
+                    
+                    // During break (breakshield exists), prevent closing other windows
+                    if breakshield_exists {
+                        api.prevent_close();
+                        eprintln!("Prevented close - break enforcement is active");
+                        // Refocus the breakshield window
+                        if let Some(breakshield) = app_handle.get_webview_window("breakshield") {
+                            let _ = breakshield.set_always_on_top(true);
+                            let _ = breakshield.set_focus();
+                        }
+                        return;
+                    }
+                    
                     // For main window, hide instead of close
                     if label == "main" {
                         api.prevent_close();
@@ -498,6 +670,16 @@ fn main() {
                             let _ = window.hide();
                         }
                     }
+                }
+                RunEvent::WindowEvent {
+                    label,
+                    event: WindowEvent::Destroyed,
+                    ..
+                } => {
+                    eprintln!("Window destroyed: {}", label);
+                }
+                RunEvent::Exit => {
+                    eprintln!("RunEvent::Exit received - app is exiting");
                 }
                 _ => {}
             }

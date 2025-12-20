@@ -181,8 +181,10 @@ body.break-active .tabs {
 .time-display {
     font-size: 48px;
     font-weight: 300;
+    font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+    font-variant-numeric: tabular-nums;
     letter-spacing: 2px;
-    min-width: 120px;
+    min-width: 150px;
     text-align: center;
     display: inline-block;
 }
@@ -406,26 +408,28 @@ body.break-active .tabs {
 }
 
 .break-content .time-display {
-    min-width: 140px;
-    width: 140px;
+    min-width: 220px;
+    width: auto;
     font-size: 72px;
+    font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+    font-variant-numeric: tabular-nums;
     text-align: center;
-    overflow: hidden;
     white-space: nowrap;
     color: #fff;
+    padding: 0 10px;
 }
 
 .break-time-up-container {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 320px;
-    height: 10%;
+    width: 400px;
     transform: translateX(-50%);
     margin: 0;
     text-align: center;
     background-color: #000;
-    padding-top: 10px;
+    padding: 20px;
+    border-radius: 12px;
 }
 
 .break-time-up-container .break-time-up-msg {
@@ -434,6 +438,28 @@ body.break-active .tabs {
     text-align: center;
     line-height: 1.5;
     margin-top: 20px;
+}
+
+.break-time-up-container .start-work-btn {
+    margin-top: 30px;
+    padding: 15px 40px;
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+    background: #4CAF50;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.break-time-up-container .start-work-btn:hover {
+    background: #45a049;
+    transform: scale(1.02);
+}
+
+.break-time-up-container .start-work-btn:active {
+    transform: scale(0.98);
 }
 
 .break-timer .break-message {

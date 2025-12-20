@@ -213,13 +213,15 @@ impl InputBlocker {
     fn activate_macos(&self) -> Result<(), String> {
         // macOS implementation using event taps (CGEventTap)
         // This requires Accessibility permissions
-        println!("macOS input blocking activated (placeholder)");
+        // For now, we'll use a simpler approach - keep the breakshield window
+        // always on top and focused, and periodically refocus it
+        eprintln!("macOS input blocking activated - active flag set to true");
         Ok(())
     }
 
     #[cfg(target_os = "macos")]
     fn deactivate_macos(&self) -> Result<(), String> {
-        println!("macOS input blocking deactivated (placeholder)");
+        eprintln!("macOS input blocking deactivated - active flag set to false");
         Ok(())
     }
 
@@ -397,17 +399,39 @@ impl InputBlocker {
     }
 
     /// macOS: check whether Cmd+Option+Shift+E is currently pressed.
-    /// Uses Core Graphics to query key states even when input blocking is active.
+    /// Uses Core Graphics to query modifier flags and key state.
     #[cfg(target_os = "macos")]
     fn emergency_chord_pressed_macos(&mut self) -> Result<bool, String> {
-        // TEMPORARY: For testing purposes, we'll implement a simple time-based trigger
-        // In a real implementation, this would use Carbon APIs or CGEventTap
+        // Use FFI to call CGEventSourceFlagsState directly
+        #[link(name = "CoreGraphics", kind = "framework")]
+        extern "C" {
+            fn CGEventSourceFlagsState(stateID: u32) -> u64;
+            fn CGEventSourceKeyState(stateID: u32, keycode: u16) -> bool;
+        }
         
-        // TODO: Replace with proper key detection using Carbon APIs or CGEventTap
-        // For now, this is a placeholder that always returns false
-        // The emergency skip can still be tested through the UI button when implemented
-        
-        Ok(false)
+        unsafe {
+            // CGEventSourceStateID::CombinedSessionState = 0
+            let flags = CGEventSourceFlagsState(0);
+            
+            // Check modifier flags
+            // kCGEventFlagMaskCommand = 0x00100000 (1048576)
+            // kCGEventFlagMaskAlternate = 0x00080000 (524288) - Option key
+            // kCGEventFlagMaskShift = 0x00020000 (131072)
+            let cmd_pressed = (flags & 0x00100000) != 0;
+            let option_pressed = (flags & 0x00080000) != 0;
+            let shift_pressed = (flags & 0x00020000) != 0;
+            
+            // E key keycode on macOS is 14
+            let e_pressed = CGEventSourceKeyState(0, 14);
+            
+            let result = cmd_pressed && option_pressed && shift_pressed && e_pressed;
+            
+            if result {
+                eprintln!("Emergency chord detected: Cmd+Option+Shift+E");
+            }
+            
+            Ok(result)
+        }
     }
 }
 
