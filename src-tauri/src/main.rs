@@ -182,12 +182,11 @@ async fn show_breakshield(app: tauri::AppHandle, url: String) -> Result<(), Stri
     let w = WebviewWindowBuilder::new(&app, "breakshield", webview_url)
         .title("Pomohardo Break")
         .decorations(false)
-        .transparent(true)
         .resizable(false)
         .always_on_top(true)
         .fullscreen(true)
         .build()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e: tauri::Error| e.to_string())?;
 
     // Some window managers ignore fullscreen-at-create for borderless/transparent windows.
     // Force it after creation and also hard-set size/position to the current monitor bounds.
@@ -198,8 +197,8 @@ async fn show_breakshield(app: tauri::AppHandle, url: String) -> Result<(), Stri
     if let Ok(Some(mon)) = w.current_monitor() {
         let pos = *mon.position();
         let size = *mon.size();
-        let _ = w.set_position(pos);
-        let _ = w.set_size(size);
+        let _ = w.set_position(tauri::Position::Physical(pos));
+        let _ = w.set_size(tauri::Size::Physical(size));
     }
 
     Ok(())

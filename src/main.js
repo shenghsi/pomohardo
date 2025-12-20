@@ -19,6 +19,15 @@ let emergencyLimitMsg;
 let emergencyHoldInstruction;
 let holdProgressContainer;
 
+// Get platform-specific emergency key combo text
+function getEmergencyKeyCombo() {
+    const platform = navigator.platform.toLowerCase();
+    if (platform.includes('mac')) {
+        return 'Cmd+Option+Shift+E';
+    }
+    return 'Ctrl+Alt+Shift+E';
+}
+
 // Initialize DOM elements
 function initDOMElements() {
     tabs = document.querySelectorAll('.tab');
@@ -50,7 +59,7 @@ function createBreakScreen() {
             </div>
             <div class="emergency-skip-container hidden" id="emergencySkipContainer">
                 <p class="emergency-instruction" id="emergencyHoldInstruction">
-                    Hold <kbd>Ctrl+Alt+Shift+E</kbd> for 4 seconds to arm emergency skip
+                    Hold <kbd id="emergencyKeyCombo">Ctrl+Alt+Shift+E</kbd> for 4 seconds to arm emergency skip
                 </p>
                 <div class="hold-progress" id="holdProgressContainer">
                     <div class="hold-progress-bar" id="holdProgressBar"></div>
@@ -65,6 +74,13 @@ function createBreakScreen() {
 
             <div class="break-time-up-container hidden" id="breakTimeUpContainer">
                 <p class="break-time-up-msg">Break complete!<br>Touch keyboard or move mouse to start work session.</p>
+            </div>
+            
+            <!-- Temporary test button for emergency skip (development only) -->
+            <div class="test-emergency-container" style="position: absolute; bottom: 20px; right: 20px;">
+                <button id="testEmergencyBtn" class="test-emergency-btn" style="background: #ff4444; color: white; padding: 10px; border: none; border-radius: 5px; font-size: 12px;">
+                    Test Emergency Skip
+                </button>
             </div>
         </div>
     `;
@@ -85,6 +101,12 @@ function createBreakScreen() {
     confirmWordInput = document.getElementById('confirmWordInput');
     confirmSkipBtn = document.getElementById('confirmSkipBtn');
     confirmInstruction = document.getElementById('confirmInstruction');
+    
+    // Update key combo text for platform
+    const emergencyKeyCombo = document.getElementById('emergencyKeyCombo');
+    if (emergencyKeyCombo) {
+        emergencyKeyCombo.textContent = getEmergencyKeyCombo();
+    }
 }
 
 // Tab switching
@@ -140,6 +162,17 @@ function setupEventListeners() {
     // Emergency skip with hold chord + confirm word (breakshield only)
     if (IS_BREAKSHIELD) {
         setupEmergencySkip();
+        
+        // Add test button listener (temporary for development)
+        const testEmergencyBtn = document.getElementById('testEmergencyBtn');
+        if (testEmergencyBtn) {
+            testEmergencyBtn.addEventListener('click', async () => {
+                // Simulate the emergency skip confirmation flow
+                if (window.triggerEmergencySkipTest) {
+                    await window.triggerEmergencySkipTest();
+                }
+            });
+        }
     }
 }
 
@@ -384,6 +417,44 @@ function setupEmergencySkip() {
     window.hideEmergencySkipUI = () => {
         stopChordPolling();
         hideEmergencySkipUI();
+    };
+    
+    // Test function to trigger emergency skip confirmation (temporary for development)
+    window.triggerEmergencySkipTest = async () => {
+        try {
+            const currentConfig = await invoke('get_config');
+            
+            // Skip the hold phase and go directly to confirmation
+            isArmed = true;
+            stopChordPolling();
+            
+            if (emergencyHoldInstruction) emergencyHoldInstruction.classList.add('hidden');
+            if (holdProgressContainer) holdProgressContainer.classList.add('hidden');
+            confirmWordContainer.classList.remove('hidden');
+            
+            // Update the confirm instruction with the configured word
+            if (confirmInstruction) {
+                confirmInstruction.innerHTML = `Type <strong>${currentConfig.emergency_confirm_word || 'SKIPBREAK'}</strong> to confirm:`;
+            }
+            
+            // Temporarily allow typing by releasing grabs
+            try { await invoke('deactivate_input_blocking'); } catch (_) { }
+            
+            confirmWordInput.value = '';
+            setTimeout(() => confirmWordInput.focus(), 100);
+            
+            // Start confirm timeout
+            const timeoutSeconds = currentConfig.emergency_confirm_timeout_seconds || 15;
+            confirmTimeout = setTimeout(async () => {
+                resetToHoldState();
+                // Re-enable blocking if still in break
+                try { await invoke('activate_input_blocking'); } catch (_) { }
+                startChordPolling();
+            }, timeoutSeconds * 1000);
+            
+        } catch (error) {
+            console.error('Test emergency skip failed:', error);
+        }
     };
 }
 

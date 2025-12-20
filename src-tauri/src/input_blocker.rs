@@ -305,7 +305,8 @@ impl InputBlocker {
         Ok(())
     }
 
-    /// Check whether Ctrl+Alt+Shift+E is currently pressed.
+    /// Check whether the emergency chord is currently pressed.
+    /// Windows/Linux: Ctrl+Alt+Shift+E, macOS: Cmd+Option+Shift+E
     /// This is used because input blocking can prevent the webview from receiving key events.
     pub fn emergency_chord_pressed(&mut self) -> Result<bool, String> {
         #[cfg(target_os = "linux")]
@@ -395,12 +396,17 @@ impl InputBlocker {
         }
     }
 
-    /// macOS: check whether Ctrl+Alt+Shift+E is currently pressed.
+    /// macOS: check whether Cmd+Option+Shift+E is currently pressed.
     /// Uses Core Graphics to query key states even when input blocking is active.
     #[cfg(target_os = "macos")]
     fn emergency_chord_pressed_macos(&mut self) -> Result<bool, String> {
-        // TODO: Implement using CGEventSourceFlagsState and appropriate key state APIs
-        // For now, return false as placeholder
+        // TEMPORARY: For testing purposes, we'll implement a simple time-based trigger
+        // In a real implementation, this would use Carbon APIs or CGEventTap
+        
+        // TODO: Replace with proper key detection using Carbon APIs or CGEventTap
+        // For now, this is a placeholder that always returns false
+        // The emergency skip can still be tested through the UI button when implemented
+        
         Ok(false)
     }
 }
