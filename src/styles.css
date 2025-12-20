@@ -440,28 +440,6 @@ body.break-active .tabs {
     margin-top: 20px;
 }
 
-.break-time-up-container .start-work-btn {
-    margin-top: 30px;
-    padding: 15px 40px;
-    font-size: 18px;
-    font-weight: 600;
-    color: #fff;
-    background: #4CAF50;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
-}
-
-.break-time-up-container .start-work-btn:hover {
-    background: #45a049;
-    transform: scale(1.02);
-}
-
-.break-time-up-container .start-work-btn:active {
-    transform: scale(0.98);
-}
-
 .break-timer .break-message {
     /* margin-top: 40px; */
     padding: 15px 10px;

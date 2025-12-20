@@ -73,8 +73,7 @@ function createBreakScreen() {
             </div>
 
             <div class="break-time-up-container hidden" id="breakTimeUpContainer">
-                <p class="break-time-up-msg">Break complete!<br>Click the button or press any key to start work session.</p>
-                <button class="start-work-btn" id="startWorkBtn">Start Work Session</button>
+                <p class="break-time-up-msg">Break complete!<br>Move mouse or press any key to start work session.</p>
             </div>
         </div>
     `;
@@ -853,16 +852,6 @@ function setupBreakCompleteListener() {
     window.addEventListener('keydown', keyHandler, { capture: true });
     window.addEventListener('mousemove', mouseHandler, { capture: true });
     window.addEventListener('click', clickHandler, { capture: true });
-    
-    // Add click handler to the Start Work button
-    const startWorkBtn = document.getElementById('startWorkBtn');
-    if (startWorkBtn) {
-        startWorkBtn.addEventListener('click', (e) => {
-            console.log('Start Work button clicked');
-            e.stopPropagation();
-            handleInteraction('button-click');
-        });
-    }
 
     // Store handlers so we can remove them later if needed
     breakCompleteHandlers = { keyHandler, mouseHandler, clickHandler };

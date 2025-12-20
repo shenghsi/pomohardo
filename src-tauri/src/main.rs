@@ -486,14 +486,15 @@ fn main() {
                 });
             });
 
-            // macOS: Fast focus enforcement thread to prevent Cmd+Tab escape
+            // macOS: Aggressive focus enforcement thread to prevent escape (Cmd+Tab, Force Quit dialog, etc.)
             #[cfg(target_os = "macos")]
             {
                 let app_handle_focus = app.handle().clone();
                 let input_blocker_for_focus = app_state.input_blocker.clone();
                 std::thread::spawn(move || {
                     loop {
-                        std::thread::sleep(Duration::from_millis(100)); // Check every 100ms
+                        // Very aggressive: check every 25ms to fight Force Quit dialog and Cmd+Tab
+                        std::thread::sleep(Duration::from_millis(25));
                         
                         if let Some(breakshield) = app_handle_focus.get_webview_window("breakshield") {
                             // Check if input blocking is active - if not, don't enforce focus
@@ -508,13 +509,13 @@ fn main() {
                                 continue;
                             }
                             
-                            // Check if breakshield has focus, if not, refocus it
-                            if let Ok(is_focused) = breakshield.is_focused() {
-                                if !is_focused {
-                                    let _ = breakshield.set_always_on_top(true);
-                                    let _ = breakshield.set_focus();
-                                }
-                            }
+                            // Always try to keep breakshield on top and focused during active break
+                            // This fights against Force Quit dialog and other system windows
+                            let _ = breakshield.set_always_on_top(true);
+                            
+                            // Always try to refocus - don't even check if focused first
+                            // This is more aggressive and helps steal focus back from Force Quit dialog
+                            let _ = breakshield.set_focus();
                         }
                     }
                 });
