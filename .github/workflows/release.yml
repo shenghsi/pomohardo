@@ -42,7 +42,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-tauri:
+  build-linux-windows:
     needs: create-release
     permissions:
       contents: write
@@ -56,12 +56,6 @@ jobs:
           - platform: 'windows-latest'
             args: '--bundles msi,nsis'
             rust_target: 'x86_64-pc-windows-msvc'
-          - platform: 'macos-12'
-            args: '--target x86_64-apple-darwin --bundles app,dmg'
-            rust_target: 'x86_64-apple-darwin'
-          - platform: 'macos-12'
-            args: '--target aarch64-apple-darwin --bundles app,dmg'
-            rust_target: 'aarch64-apple-darwin'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -85,6 +79,48 @@ jobs:
             build-essential curl wget file \
             libxdo-dev libssl-dev libayatana-appindicator3-dev \
             librsvg2-dev libxcb1-dev libx11-dev libxtst-dev
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build the app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: .
+          tagName: ${{ github.ref_name }}
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.args }}
+
+  build-macos:
+    needs: create-release
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-12'
+            args: '--target x86_64-apple-darwin --bundles app,dmg'
+            rust_target: 'x86_64-apple-darwin'
+          - platform: 'macos-12'
+            args: '--target aarch64-apple-darwin --bundles app,dmg'
+            rust_target: 'aarch64-apple-darwin'
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
 
       - name: Install frontend dependencies
         run: npm install
