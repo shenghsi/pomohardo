@@ -155,4 +155,3 @@ This plan addresses all identified cross-platform issues in the Pomohardo codeba
 
 - Windows input hooks require proper cleanup to avoid resource leaks
 - macOS event taps require Accessibility permissions - may need to add permission request UI
-- Emergency chord implementation may need to work around input blocking (chord should bypass blocks)
