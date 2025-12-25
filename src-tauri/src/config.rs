@@ -3,6 +3,18 @@ use std::fs;
 use std::path::PathBuf;
 use std::io;
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum UnlockBehavior {
+    AutoResume,
+    FreshStart,
+}
+
+impl Default for UnlockBehavior {
+    fn default() -> Self {
+        UnlockBehavior::AutoResume
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DailyLimitState {
     pub locked_date: Option<String>, // YYYY-MM-DD (Local)
@@ -25,6 +37,8 @@ pub struct Config {
     pub emergency_confirm_timeout_seconds: u32,
     #[serde(default)]
     pub auto_start: bool,
+    #[serde(default)]
+    pub unlock_behavior: UnlockBehavior,
 }
 
 fn default_emergency_hold_seconds() -> u32 {
@@ -52,6 +66,7 @@ impl Default for Config {
             emergency_confirm_word: "SKIPBREAK".to_string(),
             emergency_confirm_timeout_seconds: 15,
             auto_start: false,
+            unlock_behavior: UnlockBehavior::default(),
         }
     }
 }

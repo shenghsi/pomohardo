@@ -293,6 +293,16 @@
         </div>
     </div>
 
+    <div class="setting-group">
+        <label for="unlockBehavior">Fresh start on unlock</label>
+        <div class="input-wrapper" style="width: auto;">
+            <label class="toggle-switch">
+                <input type="checkbox" id="unlockBehavior">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+    </div>
+
     <div class="save-indicator" id="saveIndicator">
         <span>✓</span> Saved
     </div>
@@ -343,6 +353,7 @@
                 document.getElementById('emergencyConfirmWord').value = config.emergency_confirm_word || 'SKIPBREAK';
                 document.getElementById('emergencyConfirmTimeout').value = config.emergency_confirm_timeout_seconds || 15;
                 document.getElementById('autoStart').checked = config.auto_start || false;
+                document.getElementById('unlockBehavior').checked = config.unlock_behavior === 'FreshStart';
             } catch (error) {
                 console.error('Failed to load config:', error);
             }
@@ -374,6 +385,7 @@
                 emergency_confirm_word: document.getElementById('emergencyConfirmWord').value.trim().toUpperCase() || 'SKIPBREAK',
                 emergency_confirm_timeout_seconds: parseInt(document.getElementById('emergencyConfirmTimeout').value) || 15,
                 auto_start: document.getElementById('autoStart').checked,
+                unlock_behavior: document.getElementById('unlockBehavior').checked ? 'FreshStart' : 'AutoResume',
             };
 
             try {

@@ -246,6 +246,12 @@ body.break-active .tabs {
     color: #f07167;
 }
 
+.emergency-skips {
+    font-size: 14px;
+    color: #c03020;
+    margin-top: 8px;
+}
+
 /* Stats */
 .stats-container {
     width: 100%;

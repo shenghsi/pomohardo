@@ -10,7 +10,7 @@ let updateInterval = null;
 let frozenWorkState = null; // Stores last work state to freeze main window during breaks
 
 // DOM Elements (will be initialized after DOM is ready)
-let tabs, tabContents, timeDisplay, phaseLabel, sessionCount, breakDebt;
+let tabs, tabContents, timeDisplay, phaseLabel, sessionCount, breakDebt, emergencySkips;
 let progressCircle, pauseBtn, pauseIcon, skipBtn, settingsBtn, breakOverlay;
 let breakTimeDisplay, breakPhaseLabel, breakTimeUpContainer;
 let emergencySkipContainer, holdProgressBar, holdProgressText;
@@ -36,6 +36,7 @@ function initDOMElements() {
     phaseLabel = document.getElementById('phaseLabel');
     sessionCount = document.getElementById('sessionCount');
     breakDebt = document.getElementById('breakDebt');
+    emergencySkips = document.getElementById('emergencySkips');
     progressCircle = document.getElementById('progressCircle');
     pauseBtn = document.getElementById('pauseBtn');
     pauseIcon = document.getElementById('pauseIcon');
@@ -601,6 +602,14 @@ function updateUI(overrideState) {
     const debtMinutes = Math.floor(displayState.break_debt_seconds / 60);
     const debtSeconds = displayState.break_debt_seconds % 60;
     breakDebt.textContent = `Break debt: ${debtMinutes}m ${debtSeconds}s`;
+
+    // Emergency skips display
+    const skipsUsed = displayState.emergency_skips_today ?? 0;
+    const skipsLimit = displayState.emergency_skips_limit ?? 0;
+    const skipsRemaining = Math.max(0, skipsLimit - skipsUsed);
+    if (emergencySkips) {
+        emergencySkips.textContent = `Emergency skips left: ${skipsRemaining}/${skipsLimit}`;
+    }
 
     // Progress circle for main window
     const mainRemainingRatio = displayState.total_seconds > 0
