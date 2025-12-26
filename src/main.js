@@ -792,20 +792,7 @@ async function handleBreakTimeUp() {
     // Also add a direct click handler to the break overlay as a fallback
     if (breakOverlay) {
         breakOverlay.style.cursor = 'pointer';
-        breakOverlay.onclick = async (e) => {
-            // Ignore if document is hidden or recently became visible
-            if (document.visibilityState === 'hidden') {
-                console.log('Ignoring break overlay click - document is hidden');
-                return;
-            }
-            const timeSinceVisibilityChange = Date.now() - visibilityChangeTime;
-            if (timeSinceVisibilityChange < VISIBILITY_GRACE_PERIOD_MS) {
-                console.log(`Ignoring break overlay click - too soon after visibility change (${timeSinceVisibilityChange}ms)`);
-                return;
-            }
-            console.log('Break overlay clicked directly');
-            await completeBreakAndDismiss();
-        };
+        breakOverlay.onclick = () => completeBreakAndDismiss();
     }
     
     console.log('=== Ready for user interaction ===');
@@ -830,59 +817,14 @@ async function completeBreakAndDismiss() {
 
 // Set up listener for user interaction to complete break
 let breakCompleteHandlers = null;
-let visibilityChangeTime = Date.now();
-let wasHidden = false;
-const VISIBILITY_GRACE_PERIOD_MS = 2000; // Ignore events for 2s after visibility change
 
 function setupBreakCompleteListener() {
     // Remove any existing listeners first
     removeBreakCompleteListener();
 
     console.log('Setting up break complete listeners');
-    
-    // Initialize to current time so events right after setup are ignored
-    visibilityChangeTime = Date.now();
-    wasHidden = document.visibilityState === 'hidden';
-
-    // Track visibility changes to ignore synthetic events after screen blank/unblank
-    const visibilityHandler = async () => {
-        const now = Date.now();
-        const justBecameVisible = wasHidden && document.visibilityState === 'visible';
-        
-        if (justBecameVisible || document.visibilityState === 'hidden') {
-            visibilityChangeTime = now;
-            wasHidden = document.visibilityState === 'hidden';
-        }
-        
-        // Re-apply fullscreen when document becomes visible (screen unblank)
-        if (document.visibilityState === 'visible' && IS_BREAKSHIELD) {
-            try {
-                const { getCurrentWindow } = window.__TAURI__.window;
-                const appWindow = getCurrentWindow();
-                await appWindow.setFullscreen(true);
-                await appWindow.setAlwaysOnTop(true);
-                await appWindow.setFocus();
-            } catch (error) {
-                console.error('Failed to restore fullscreen after visibility change:', error);
-            }
-        }
-    };
-    document.addEventListener('visibilitychange', visibilityHandler);
 
     const handleInteraction = async (eventType) => {
-        // Ignore events when document is hidden (screen blanked)
-        if (document.visibilityState === 'hidden') {
-            console.log(`Ignoring ${eventType} event - document is hidden`);
-            return;
-        }
-
-        // Ignore events immediately after visibility change (screen unblank)
-        const timeSinceVisibilityChange = Date.now() - visibilityChangeTime;
-        if (timeSinceVisibilityChange < VISIBILITY_GRACE_PERIOD_MS) {
-            console.log(`Ignoring ${eventType} event - too soon after visibility change (${timeSinceVisibilityChange}ms)`);
-            return;
-        }
-
         console.log(`User interaction detected (${eventType}), completing break...`);
         
         // Remove listeners immediately to prevent multiple calls
@@ -891,31 +833,17 @@ function setupBreakCompleteListener() {
         await completeBreakAndDismiss();
     };
 
-    // Listen for keyboard and click events only (not mousemove - too prone to synthetic events from screen blank)
-    const keyHandler = (e) => {
-        console.log('Key pressed:', e.key);
-        handleInteraction('keydown');
-    };
-
-    const clickHandler = (e) => {
-        console.log('Mouse clicked at:', e.clientX, e.clientY);
-        handleInteraction('click');
-    };
+    // Listen for keyboard and click events only (not mousemove - screen blank can trigger synthetic mouse events)
+    const keyHandler = () => handleInteraction('keydown');
+    const clickHandler = () => handleInteraction('click');
 
     // Use capture phase to ensure we get events even if something else is blocking them
     document.addEventListener('keydown', keyHandler, { capture: true });
     document.addEventListener('click', clickHandler, { capture: true });
-    
-    // Also add to window for broader coverage
     window.addEventListener('keydown', keyHandler, { capture: true });
     window.addEventListener('click', clickHandler, { capture: true });
 
-    // Store handlers so we can remove them later if needed
-    breakCompleteHandlers = { 
-        keyHandler, 
-        clickHandler,
-        visibilityHandler 
-    };
+    breakCompleteHandlers = { keyHandler, clickHandler };
     
     console.log('Break complete listeners set up successfully');
 }
@@ -924,11 +852,9 @@ function removeBreakCompleteListener() {
     if (breakCompleteHandlers) {
         document.removeEventListener('keydown', breakCompleteHandlers.keyHandler, { capture: true });
         document.removeEventListener('click', breakCompleteHandlers.clickHandler, { capture: true });
-        document.removeEventListener('visibilitychange', breakCompleteHandlers.visibilityHandler);
         window.removeEventListener('keydown', breakCompleteHandlers.keyHandler, { capture: true });
         window.removeEventListener('click', breakCompleteHandlers.clickHandler, { capture: true });
         breakCompleteHandlers = null;
-        console.log('Break complete listeners removed');
     }
 }
 
