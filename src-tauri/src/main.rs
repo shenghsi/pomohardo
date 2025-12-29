@@ -447,6 +447,13 @@ fn main() {
             let args: Vec<String> = std::env::args().collect();
             let start_minimized = args.contains(&"--minimized".to_string());
 
+            // On autostart (--minimized), add a small delay to let the system settle
+            // This helps prevent duplicate tray icons on Linux after login
+            #[cfg(target_os = "linux")]
+            if start_minimized {
+                std::thread::sleep(Duration::from_millis(500));
+            }
+
             if !start_minimized {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
@@ -657,7 +664,17 @@ fn main() {
                     let _ = label; // Suppress unused warning
                 }
                 RunEvent::Exit => {
-                    // App is exiting
+                    // Clean up tray icon on exit to prevent ghost icons on Linux
+                    if let Some(tray) = app_handle.tray_by_id("pomohardo-tray") {
+                        let _ = tray.set_visible(false);
+                    }
+                    
+                    // Clean up the instance lock on Linux
+                    #[cfg(target_os = "linux")]
+                    {
+                        let lock_dir = std::env::temp_dir().join("pomohardo_lock");
+                        let _ = std::fs::remove_dir_all(&lock_dir);
+                    }
                 }
                 _ => {}
             }

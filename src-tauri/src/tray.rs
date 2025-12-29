@@ -5,7 +5,7 @@ use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, Emitter, Resource,
+    AppHandle, Manager, Emitter,
 };
 use tokio::sync::Mutex;
 
@@ -195,9 +195,14 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
     let icon_data = generate_ring_icon(1.0, Phase::Work, false);
     let icon = Image::from_bytes(&icon_data)?;
 
-    // Check for existing tray with our ID and remove it to prevent duplicates
+    // Remove any existing tray with our ID to prevent duplicates
+    // This can happen on autostart race conditions or if the app crashed without cleanup
     if let Some(existing_tray) = app.tray_by_id("pomohardo-tray") {
-        let _ = Arc::new(existing_tray).close();
+        // Hide and drop the existing tray - dropping should trigger cleanup
+        let _ = existing_tray.set_visible(false);
+        drop(existing_tray);
+        // Small delay to let the system tray update
+        std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
     // Build the tray icon
