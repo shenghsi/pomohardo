@@ -51,25 +51,25 @@ function calculateBreakshieldSizes() {
     
     // Base sizes as percentages of screen dimensions
     // Break timer container: 30-40% of screen width, with min/max constraints
-    const breakTimerWidth = Math.max(280, Math.min(width * 0.35, 600));
+    const breakTimerWidth = width * 0.2;
     
     // Break content padding: responsive to screen size
-    const breakContentPaddingX = Math.max(20, width * 0.04);
-    const breakContentPaddingY = Math.max(20, height * 0.02);
+    const breakContentPaddingX = width * 0.04;
+    const breakContentPaddingY = height * 0.02;
     
     // Time display font size: scales with screen height
-    const timeDisplayFontSize = Math.max(48, Math.min(height * 0.1, 120));
-    const timeDisplayMinWidth = Math.max(180, width * 0.2);
+    const timeDisplayFontSize = height * 0.05;
+    const timeDisplayMinWidth = width * 0.2;
     
     // Phase label font size: scales with screen height
-    const phaseLabelFontSize = Math.max(16, Math.min(height * 0.028, 32));
+    const phaseLabelFontSize = height * 0.015;
     
     // Break message font size: scales with screen height
-    const breakMessageFontSize = Math.max(16, Math.min(height * 0.028, 32));
+    const breakMessageFontSize = height * 0.015;
     
     // Break time up container: 35-45% of screen width
-    const breakTimeUpWidth = Math.max(300, Math.min(width * 0.4, 600));
-    const breakTimeUpFontSize = Math.max(18, Math.min(height * 0.033, 36));
+    const breakTimeUpWidth = width * 0.25;
+    const breakTimeUpFontSize = height * 0.018;
     
     // Emergency skip container: same width as break timer
     const emergencySkipWidth = breakTimerWidth;
@@ -79,7 +79,7 @@ function calculateBreakshieldSizes() {
     
     // Confirm word container: same width as break timer
     const confirmWordWidth = breakTimerWidth;
-    const confirmWordInputWidth = Math.max(160, breakTimerWidth * 0.6);
+    const confirmWordInputWidth = breakTimerWidth * 0.6;
     
     // Set CSS custom properties
     const root = document.documentElement;
