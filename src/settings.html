@@ -103,6 +103,20 @@
             width: 100%;
         }
 
+        .error-message {
+            margin-top: 4px;
+            font-size: 11px;
+            color: #ff4444;
+            text-align: left;
+            display: block;
+            width: 100%;
+        }
+
+        .setting-group input.error {
+            border-color: #ff4444;
+            box-shadow: 0 0 0 2px rgba(255, 68, 68, 0.2);
+        }
+
         .hidden {
             display: none !important;
         }
@@ -214,6 +228,7 @@
         <label for="workDuration">Pomodoro Duration (minutes)</label>
         <div class="input-wrapper">
             <input type="number" id="workDuration" min="1" max="60">
+            <span class="error-message hidden" id="workDurationError"></span>
         </div>
     </div>
 
@@ -221,6 +236,7 @@
         <label for="breakDuration">Break Duration (minutes)</label>
         <div class="input-wrapper">
             <input type="number" id="breakDuration" min="1" max="30">
+            <span class="error-message hidden" id="breakDurationError"></span>
         </div>
     </div>
 
@@ -228,6 +244,7 @@
         <label for="longBreakDuration">Long Break Duration (minutes)</label>
         <div class="input-wrapper">
             <input type="number" id="longBreakDuration" min="1" max="60">
+            <span class="error-message hidden" id="longBreakDurationError"></span>
         </div>
     </div>
 
@@ -235,6 +252,7 @@
         <label for="sessionsBeforeLongBreak">Sessions Before Long Break</label>
         <div class="input-wrapper">
             <input type="number" id="sessionsBeforeLongBreak" min="2" max="10">
+            <span class="error-message hidden" id="sessionsBeforeLongBreakError"></span>
         </div>
     </div>
 
@@ -246,6 +264,7 @@
         <label for="breakDebtCap">Break Debt Cap (minutes)</label>
         <div class="input-wrapper">
             <input type="number" id="breakDebtCap" min="10" max="120">
+            <span class="error-message hidden" id="breakDebtCapError"></span>
         </div>
     </div>
 
@@ -253,6 +272,7 @@
         <label for="emergencyHoldSeconds">Skip Hold Duration (seconds)</label>
         <div class="input-wrapper">
             <input type="number" id="emergencyHoldSeconds" min="1" max="10">
+            <span class="error-message hidden" id="emergencyHoldSecondsError"></span>
         </div>
     </div>
 
@@ -267,6 +287,7 @@
         <label for="emergencyConfirmTimeout">Skip Confirm Timeout (seconds)</label>
         <div class="input-wrapper">
             <input type="number" id="emergencyConfirmTimeout" min="5" max="120">
+            <span class="error-message hidden" id="emergencyConfirmTimeoutError"></span>
         </div>
     </div>
 
@@ -276,6 +297,7 @@
             <input type="number" id="emergencySkipsPerDay" min="0" max="10">
             <span class="hint hidden" id="emergencySkipsLockedNote">Locked after the first pomodoro session of the
                 day</span>
+            <span class="error-message hidden" id="emergencySkipsPerDayError"></span>
         </div>
     </div>
 
@@ -300,6 +322,7 @@
     <script>
         let invoke;
         let config = null;
+        const lastValidValues = {}; // Store last valid values for each input
 
         // Wait for Tauri API
         function waitForTauri() {
@@ -314,6 +337,7 @@
         async function init() {
             await loadConfig();
             setupAutoSave();
+            setupValidation();
         }
 
         async function loadConfig() {
@@ -321,15 +345,26 @@
                 config = await invoke('get_config');
                 const state = await invoke('get_timer_state');
 
-                document.getElementById('workDuration').value = config.work_duration_minutes;
-                document.getElementById('breakDuration').value = config.break_duration_minutes;
-                document.getElementById('longBreakDuration').value = config.long_break_duration_minutes;
-                document.getElementById('sessionsBeforeLongBreak').value = config.sessions_before_long_break;
+                const workDuration = config.work_duration_minutes;
+                const breakDuration = config.break_duration_minutes;
+                const longBreakDuration = config.long_break_duration_minutes;
+                const sessionsBeforeLongBreak = config.sessions_before_long_break;
+
+                document.getElementById('workDuration').value = workDuration;
+                lastValidValues['workDuration'] = workDuration;
+                document.getElementById('breakDuration').value = breakDuration;
+                lastValidValues['breakDuration'] = breakDuration;
+                document.getElementById('longBreakDuration').value = longBreakDuration;
+                lastValidValues['longBreakDuration'] = longBreakDuration;
+                document.getElementById('sessionsBeforeLongBreak').value = sessionsBeforeLongBreak;
+                lastValidValues['sessionsBeforeLongBreak'] = sessionsBeforeLongBreak;
 
                 const emergencySkipsEl = document.getElementById('emergencySkipsPerDay');
                 const lockedNote = document.getElementById('emergencySkipsLockedNote');
+                const emergencySkipsValue = state.emergency_skips_limit ?? config.emergency_skips_per_day;
 
-                emergencySkipsEl.value = state.emergency_skips_limit ?? config.emergency_skips_per_day;
+                emergencySkipsEl.value = emergencySkipsValue;
+                lastValidValues['emergencySkipsPerDay'] = emergencySkipsValue;
                 if (state.emergency_limit_locked) {
                     emergencySkipsEl.disabled = true;
                     lockedNote.classList.remove('hidden');
@@ -338,10 +373,17 @@
                     lockedNote.classList.add('hidden');
                 }
 
-                document.getElementById('breakDebtCap').value = config.break_debt_cap_minutes;
-                document.getElementById('emergencyHoldSeconds').value = config.emergency_hold_seconds || 4;
+                const breakDebtCap = config.break_debt_cap_minutes;
+                const emergencyHoldSeconds = config.emergency_hold_seconds || 4;
+                const emergencyConfirmTimeout = config.emergency_confirm_timeout_seconds || 15;
+
+                document.getElementById('breakDebtCap').value = breakDebtCap;
+                lastValidValues['breakDebtCap'] = breakDebtCap;
+                document.getElementById('emergencyHoldSeconds').value = emergencyHoldSeconds;
+                lastValidValues['emergencyHoldSeconds'] = emergencyHoldSeconds;
                 document.getElementById('emergencyConfirmWord').value = config.emergency_confirm_word || 'SKIPBREAK';
-                document.getElementById('emergencyConfirmTimeout').value = config.emergency_confirm_timeout_seconds || 15;
+                document.getElementById('emergencyConfirmTimeout').value = emergencyConfirmTimeout;
+                lastValidValues['emergencyConfirmTimeout'] = emergencyConfirmTimeout;
                 document.getElementById('autoStart').checked = config.auto_start || false;
             } catch (error) {
                 console.error('Failed to load config:', error);
@@ -362,7 +404,84 @@
             });
         }
 
+        function setupValidation() {
+            // Get all number inputs
+            const numberInputs = document.querySelectorAll('input[type="number"]');
+
+            numberInputs.forEach(input => {
+                // Validate on blur (when user leaves the field)
+                input.addEventListener('blur', () => validateInput(input));
+                // Also validate on input to show error immediately
+                input.addEventListener('input', () => validateInput(input, false));
+            });
+        }
+
+        function validateInput(input, revertOnInvalid = true) {
+            const value = parseFloat(input.value);
+            const min = parseFloat(input.getAttribute('min'));
+            const max = parseFloat(input.getAttribute('max'));
+            const inputId = input.id;
+            const errorElement = document.getElementById(inputId + 'Error');
+
+            // Check if value is empty or invalid
+            if (input.value === '' || isNaN(value)) {
+                if (revertOnInvalid && lastValidValues[inputId] !== undefined) {
+                    input.value = lastValidValues[inputId];
+                    clearError(input, errorElement);
+                } else {
+                    showError(input, errorElement, 'Please enter a valid number');
+                }
+                return false;
+            }
+
+            // Check if value is out of range
+            if (value < min || value > max) {
+                if (revertOnInvalid && lastValidValues[inputId] !== undefined) {
+                    input.value = lastValidValues[inputId];
+                    clearError(input, errorElement);
+                } else {
+                    showError(input, errorElement, `Value must be between ${min} and ${max}`);
+                }
+                return false;
+            }
+
+            // Value is valid
+            clearError(input, errorElement);
+            lastValidValues[inputId] = value;
+            return true;
+        }
+
+        function showError(input, errorElement, message) {
+            input.classList.add('error');
+            if (errorElement) {
+                errorElement.textContent = message;
+                errorElement.classList.remove('hidden');
+            }
+        }
+
+        function clearError(input, errorElement) {
+            input.classList.remove('error');
+            if (errorElement) {
+                errorElement.classList.add('hidden');
+            }
+        }
+
         async function saveConfig() {
+            // Validate all number inputs before saving
+            const numberInputs = document.querySelectorAll('input[type="number"]');
+            let allValid = true;
+
+            numberInputs.forEach(input => {
+                if (!validateInput(input, true)) {
+                    allValid = false;
+                }
+            });
+
+            // Don't save if any input is invalid
+            if (!allValid) {
+                return;
+            }
+
             const newConfig = {
                 work_duration_minutes: parseInt(document.getElementById('workDuration').value) || 25,
                 break_duration_minutes: parseInt(document.getElementById('breakDuration').value) || 5,
