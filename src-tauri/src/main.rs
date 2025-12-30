@@ -9,10 +9,8 @@ mod tray;
 
 use std::sync::Arc;
 use std::time::Duration;
-use std::collections::HashMap;
 use tokio::sync::Mutex;
 use tauri::{Emitter, Manager, Listener, WebviewUrl, WebviewWindowBuilder, RunEvent, WindowEvent, AppHandle};
-use tauri::async_runtime::JoinHandle;
 use tauri_plugin_autostart::MacosLauncher;
 
 #[derive(Clone)]
@@ -20,8 +18,6 @@ struct AppState {
     timer: Arc<Mutex<timer::TimerEngine>>,
     config: Arc<Mutex<config::Config>>,
     input_blocker: Arc<Mutex<input_blocker::InputBlocker>>,
-    // Track active focus-loss timeout tasks for Wayland friction
-    focus_timeout_tasks: Arc<Mutex<HashMap<String, JoinHandle<()>>>>,
 }
 
 #[derive(serde::Serialize)]
@@ -214,14 +210,9 @@ async fn show_breakshield(app: tauri::AppHandle, url: String) -> Result<(), Stri
     if let Ok(Some(mon)) = w.current_monitor() {
         let pos = *mon.position();
         let size = *mon.size();
-        eprintln!("Monitor: {}x{} at ({}, {})", size.width, size.height, pos.x, pos.y);
         let _ = w.set_position(tauri::Position::Physical(pos));
         let _ = w.set_size(tauri::Size::Physical(size));
     }
-
-    // Final attempts
-    let _ = w.set_fullscreen(true);
-    let _ = w.maximize();
 
     Ok(())
 }
@@ -360,7 +351,6 @@ fn acquire_instance_lock() -> bool {
 /// Handle breakshield focus loss on Wayland: pause timer
 #[cfg(target_os = "linux")]
 fn handle_breakshield_focus_loss(app: AppHandle) {
-    eprintln!("DEBUG: Breakshield lost focus - pausing timer");
     tauri::async_runtime::spawn(async move {
         // Try to regain focus immediately
         if let Some(window) = app.get_webview_window("breakshield") {
@@ -372,7 +362,6 @@ fn handle_breakshield_focus_loss(app: AppHandle) {
         if let Some(state) = app.try_state::<AppState>() {
             let mut timer = state.timer.lock().await;
             timer.pause();
-            eprintln!("DEBUG: Timer paused");
         }
     });
 }
@@ -380,13 +369,10 @@ fn handle_breakshield_focus_loss(app: AppHandle) {
 /// Handle breakshield focus gain on Wayland: resume timer
 #[cfg(target_os = "linux")]
 fn handle_breakshield_focus_gain(app: AppHandle) {
-    eprintln!("DEBUG: Breakshield regained focus - resuming timer");
     tauri::async_runtime::spawn(async move {
         if let Some(state) = app.try_state::<AppState>() {
-            // Resume timer
             let mut timer = state.timer.lock().await;
             timer.resume();
-            eprintln!("DEBUG: Timer resumed");
         }
     });
 }
@@ -523,7 +509,6 @@ fn main() {
                 timer: Arc::new(Mutex::new(timer)),
                 config: Arc::new(Mutex::new(config)),
                 input_blocker: Arc::new(Mutex::new(input_blocker::InputBlocker::new())),
-                focus_timeout_tasks: Arc::new(Mutex::new(HashMap::new())),
             };
 
             // Create system tray icon
@@ -580,54 +565,6 @@ fn main() {
                             // Always try to refocus - don't even check if focused first
                             // This is more aggressive and helps steal focus back from Force Quit dialog
                             let _ = breakshield.set_focus();
-                        }
-                    }
-                });
-            }
-
-            // Linux: Aggressive focus and fullscreen enforcement for Wayland/X11
-            // Wayland doesn't allow complete input blocking or focus stealing,
-            // so we try our best to keep the window prominent
-            #[cfg(target_os = "linux")]
-            {
-                let app_handle_focus = app.handle().clone();
-                let input_blocker_for_focus = app_state.input_blocker.clone();
-                std::thread::spawn(move || {
-                    let mut tick = 0u32;
-                    loop {
-                        // Check every 50ms to enforce focus (25ms was too aggressive)
-                        std::thread::sleep(Duration::from_millis(50));
-                        tick = tick.wrapping_add(1);
-                        
-                        if let Some(breakshield) = app_handle_focus.get_webview_window("breakshield") {
-                            // Check if input blocking is active
-                            let blocker_active = {
-                                let blocker = futures::executor::block_on(input_blocker_for_focus.lock());
-                                blocker.is_active()
-                            };
-                            
-                            if !blocker_active {
-                                // Break time is up, don't enforce focus
-                                continue;
-                            }
-                            
-                            // Always try to set focus and keep on top
-                            let _ = breakshield.set_always_on_top(true);
-                            let _ = breakshield.set_focus();
-                            
-                            // Every 500ms, also try fullscreen and maximize
-                            if tick % 10 == 0 {
-                                let _ = breakshield.set_fullscreen(true);
-                                let _ = breakshield.maximize();
-                                
-                                // Re-set size to monitor bounds in case it drifted
-                                if let Ok(Some(mon)) = breakshield.current_monitor() {
-                                    let pos = *mon.position();
-                                    let size = *mon.size();
-                                    let _ = breakshield.set_position(tauri::Position::Physical(pos));
-                                    let _ = breakshield.set_size(tauri::Size::Physical(size));
-                                }
-                            }
                         }
                     }
                 });
@@ -790,17 +727,6 @@ fn main() {
                     }
                 }
                 RunEvent::Exit => {
-                    // Cancel all focus timeout tasks
-                    if let Some(state) = app_handle.try_state::<AppState>() {
-                        let rt = tokio::runtime::Handle::current();
-                        rt.block_on(async {
-                            let mut tasks = state.focus_timeout_tasks.lock().await;
-                            for (_, handle) in tasks.drain() {
-                                handle.abort();
-                            }
-                        });
-                    }
-                    
                     // Clean up tray icon on exit to prevent ghost icons on Linux
                     if let Some(tray) = app_handle.tray_by_id("pomohardo-tray") {
                         let _ = tray.set_visible(false);
