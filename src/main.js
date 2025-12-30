@@ -517,13 +517,15 @@ async function updateTimerState() {
     try {
         timerState = await invoke('get_timer_state');
 
-        const inBreak = (timerState.phase === 'Break' || timerState.phase === 'LongBreak') && timerState.status === 'Running';
-        const breakTimeUp = (timerState.phase === 'Break' || timerState.phase === 'LongBreak') && timerState.status === 'Paused' && timerState.remaining_seconds === 0;
+        // Check if we're in a break phase (regardless of running/paused status)
+        const inBreakPhase = (timerState.phase === 'Break' || timerState.phase === 'LongBreak');
+        const inBreak = inBreakPhase && timerState.status === 'Running';
+        const breakTimeUp = inBreakPhase && timerState.status === 'Paused' && timerState.remaining_seconds === 0;
 
         // Main window: freeze display during breaks, only manage breakshield window
         if (!IS_BREAKSHIELD) {
             // Capture work state when entering break
-            if ((inBreak || breakTimeUp) && !frozenWorkState) {
+            if (inBreakPhase && !frozenWorkState) {
                 // Store the state we want to display while frozen
                 // Use the configured work duration as the "full" display
                 frozenWorkState = {
@@ -537,19 +539,20 @@ async function updateTimerState() {
             }
 
             // Clear frozen state when work resumes
-            if (!inBreak && !breakTimeUp && frozenWorkState) {
+            if (!inBreakPhase && frozenWorkState) {
                 frozenWorkState = null;
             }
 
             // Update UI with frozen state during breaks, real state otherwise
-            updateUI((inBreak || breakTimeUp) ? frozenWorkState : null);
+            updateUI(inBreakPhase ? frozenWorkState : null);
 
             // Manage breakshield window open/close
+            // Keep breakshield open for the entire break phase (even when paused)
             if ((inBreak || breakTimeUp) && !breakshieldOpen) {
                 const base = window.location.href.replace(/#.*$/, '');
                 await invoke('show_breakshield', { url: `${base}#breakshield` });
                 breakshieldOpen = true;
-            } else if (!inBreak && !breakTimeUp && breakshieldOpen) {
+            } else if (!inBreakPhase && breakshieldOpen) {
                 await invoke('hide_breakshield');
                 breakshieldOpen = false;
             }

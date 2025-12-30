@@ -1,12 +1,13 @@
 {
   "name": "pomohardo",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "A cross-platform pomodoro timer that enforces breaks",
   "type": "module",
   "scripts": {
     "serve": "http-server src -p 5173 -c-1",
     "dev": "npm run sync-version && tauri dev",
     "build": "npm run sync-version && tauri build",
+    "build:deb": "npm run sync-version && tauri build --bundles deb",
     "tauri": "tauri",
     "generate-icons": "node generate-proper-ico.js",
     "sync-version": "node scripts/sync-version.js",
