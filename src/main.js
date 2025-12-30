@@ -44,6 +44,60 @@ function initDOMElements() {
     settingsBtn = document.getElementById('settingsBtn');
 }
 
+// Calculate breakshield sizes based on screen dimensions
+function calculateBreakshieldSizes() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    
+    // Base sizes as percentages of screen dimensions
+    // Break timer container: 30-40% of screen width, with min/max constraints
+    const breakTimerWidth = Math.max(280, Math.min(width * 0.35, 600));
+    
+    // Break content padding: responsive to screen size
+    const breakContentPaddingX = Math.max(20, width * 0.04);
+    const breakContentPaddingY = Math.max(20, height * 0.02);
+    
+    // Time display font size: scales with screen height
+    const timeDisplayFontSize = Math.max(48, Math.min(height * 0.1, 120));
+    const timeDisplayMinWidth = Math.max(180, width * 0.2);
+    
+    // Phase label font size: scales with screen height
+    const phaseLabelFontSize = Math.max(16, Math.min(height * 0.028, 32));
+    
+    // Break message font size: scales with screen height
+    const breakMessageFontSize = Math.max(16, Math.min(height * 0.028, 32));
+    
+    // Break time up container: 35-45% of screen width
+    const breakTimeUpWidth = Math.max(300, Math.min(width * 0.4, 600));
+    const breakTimeUpFontSize = Math.max(18, Math.min(height * 0.033, 36));
+    
+    // Emergency skip container: same width as break timer
+    const emergencySkipWidth = breakTimerWidth;
+    
+    // Hold progress: same width as break timer
+    const holdProgressWidth = breakTimerWidth;
+    
+    // Confirm word container: same width as break timer
+    const confirmWordWidth = breakTimerWidth;
+    const confirmWordInputWidth = Math.max(160, breakTimerWidth * 0.6);
+    
+    // Set CSS custom properties
+    const root = document.documentElement;
+    root.style.setProperty('--break-timer-width', `${breakTimerWidth}px`);
+    root.style.setProperty('--break-content-padding-x', `${breakContentPaddingX}px`);
+    root.style.setProperty('--break-content-padding-y', `${breakContentPaddingY}px`);
+    root.style.setProperty('--break-time-display-font-size', `${timeDisplayFontSize}px`);
+    root.style.setProperty('--break-time-display-min-width', `${timeDisplayMinWidth}px`);
+    root.style.setProperty('--break-phase-label-font-size', `${phaseLabelFontSize}px`);
+    root.style.setProperty('--break-message-font-size', `${breakMessageFontSize}px`);
+    root.style.setProperty('--break-time-up-width', `${breakTimeUpWidth}px`);
+    root.style.setProperty('--break-time-up-font-size', `${breakTimeUpFontSize}px`);
+    root.style.setProperty('--emergency-skip-width', `${emergencySkipWidth}px`);
+    root.style.setProperty('--hold-progress-width', `${holdProgressWidth}px`);
+    root.style.setProperty('--confirm-word-width', `${confirmWordWidth}px`);
+    root.style.setProperty('--confirm-word-input-width', `${confirmWordInputWidth}px`);
+}
+
 // Create break screen DOM (only called in breakshield mode)
 function createBreakScreen() {
     const html = `
@@ -101,6 +155,12 @@ function createBreakScreen() {
     if (emergencyKeyCombo) {
         emergencyKeyCombo.textContent = getEmergencyKeyCombo();
     }
+    
+    // Calculate and set sizes based on screen dimensions
+    calculateBreakshieldSizes();
+    
+    // Recalculate on window resize
+    window.addEventListener('resize', calculateBreakshieldSizes);
 }
 
 // Tab switching

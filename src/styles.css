@@ -391,7 +391,7 @@ body.break-active .tabs {
     top: 30%;
     left: 50%;
     transform: translateX(-50%);
-    width: 320px;
+    width: var(--break-timer-width, 320px);
     height: 20%;
     margin: 0;
     background-color: #000;
@@ -404,19 +404,19 @@ body.break-active .tabs {
     align-items: center;
     gap: 20px;
     background-color: #000;
-    padding: 20px 40px;
+    padding: var(--break-content-padding-y, 20px) var(--break-content-padding-x, 40px);
     border-radius: 10px;
 }
 
 .break-content .phase-label {
-    font-size: 20px;
+    font-size: var(--break-phase-label-font-size, 20px);
     color: #aaa;
 }
 
 .break-content .time-display {
-    min-width: 220px;
+    min-width: var(--break-time-display-min-width, 220px);
     width: auto;
-    font-size: 72px;
+    font-size: var(--break-time-display-font-size, 72px);
     font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
     font-variant-numeric: tabular-nums;
     text-align: center;
@@ -429,7 +429,7 @@ body.break-active .tabs {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 400px;
+    width: var(--break-time-up-width, 400px);
     transform: translateX(-50%);
     margin: 0;
     text-align: center;
@@ -439,7 +439,7 @@ body.break-active .tabs {
 }
 
 .break-time-up-container .break-time-up-msg {
-    font-size: 24px;
+    font-size: var(--break-time-up-font-size, 24px);
     color: #fff;
     text-align: center;
     line-height: 1.5;
@@ -449,7 +449,7 @@ body.break-active .tabs {
 .break-timer .break-message {
     /* margin-top: 40px; */
     padding: 15px 10px;
-    font-size: 20px;
+    font-size: var(--break-message-font-size, 20px);
     color: #888;
     text-align: center;
 }
@@ -465,7 +465,7 @@ body.break-active .tabs {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 320px;
+    width: var(--emergency-skip-width, 320px);
     height: 6%;
     transform: translateX(-50%);
     margin: 0;
@@ -493,7 +493,7 @@ body.break-active .tabs {
 
 .hold-progress {
     position: relative;
-    width: 320px;
+    width: var(--hold-progress-width, 320px);
     height: 20px;
     margin: 0 auto 20px;
     background: #3a3a3a;
@@ -526,7 +526,7 @@ body.break-active .tabs {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 320px;
+    width: var(--confirm-word-width, 320px);
     height: 6%;
     transform: translateX(-50%);
     margin: 0;
@@ -549,7 +549,7 @@ body.break-active .tabs {
     color: #ffffff;
     font-size: 16px;
     text-align: center;
-    width: 200px;
+    width: var(--confirm-word-input-width, 200px);
     margin-bottom: 10px;
     position: relative;
     z-index: 9999;
