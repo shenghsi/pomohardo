@@ -777,10 +777,6 @@ async function showBreakOverlay() {
         setupBreakCompleteListener();
     }
 
-    // Request notification permission if not granted
-    if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
-    }
 }
 
 // Hide break overlay
@@ -959,23 +955,6 @@ async function init() {
     // Listen for break started
     listen('break-started', async (event) => {
         console.log('Break started:', event.payload);
-        // Show notification
-        if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('Pomohardo', {
-                body: event.payload,
-                icon: '/icons/32x32.png'
-            });
-        } else if ('Notification' in window && Notification.permission !== 'denied') {
-            Notification.requestPermission().then(permission => {
-                if (permission === 'granted') {
-                    new Notification('Pomohardo', {
-                        body: event.payload,
-                        icon: '/icons/32x32.png'
-                    });
-                }
-            });
-        }
-
         // Activate break overlay
         await updateTimerState();
     });

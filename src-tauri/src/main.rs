@@ -368,7 +368,6 @@ fn main() {
                 let _ = window.set_focus();
             }
         }))
-        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             Some(vec!["--minimized"]),
@@ -583,7 +582,7 @@ fn main() {
 
                         app_handle.emit("phase-changed", phase_name).ok();
                         
-                        // Show notification for break start
+                        // Emit break started event
                         if matches!(current_phase, timer::Phase::Break | timer::Phase::LongBreak) {
                             let break_type = if matches!(current_phase, timer::Phase::LongBreak) {
                                 "Long break"
