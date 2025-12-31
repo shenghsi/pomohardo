@@ -178,41 +178,23 @@ async fn show_breakshield(app: tauri::AppHandle, url: String) -> Result<(), Stri
         Err(_) => WebviewUrl::App("index.html#breakshield".into()),
     };
 
-    // Detect if we're running under Wayland
-    let is_wayland = std::env::var("XDG_SESSION_TYPE")
-        .unwrap_or_default()
-        .to_lowercase() == "wayland";
-
-    // Build the window - for Wayland we need to request fullscreen at creation
-    let mut builder = WebviewWindowBuilder::new(&app, "breakshield", webview_url)
+    // Build fullscreen breakshield window
+    let w = WebviewWindowBuilder::new(&app, "breakshield", webview_url)
         .title("Pomohardo Break")
         .decorations(false)
         .resizable(false)
         .always_on_top(true)
         .skip_taskbar(true)
         .focused(true)
-        .fullscreen(true);  // Request fullscreen immediately
+        .fullscreen(true)
+        .build()
+        .map_err(|e: tauri::Error| e.to_string())?;
 
-    // On Wayland, also maximize as fallback
-    if is_wayland {
-        builder = builder.maximized(true);
-    }
-
-    let w = builder.build().map_err(|e: tauri::Error| e.to_string())?;
-
-    // Force fullscreen again after creation (belt and suspenders)
+    // Ensure fullscreen and focus
     let _ = w.set_fullscreen(true);
     let _ = w.set_always_on_top(true);
     let _ = w.show();
     let _ = w.set_focus();
-
-    // If fullscreen didn't work, manually set to monitor size
-    if let Ok(Some(mon)) = w.current_monitor() {
-        let pos = *mon.position();
-        let size = *mon.size();
-        let _ = w.set_position(tauri::Position::Physical(pos));
-        let _ = w.set_size(tauri::Size::Physical(size));
-    }
 
     Ok(())
 }
@@ -221,6 +203,14 @@ async fn show_breakshield(app: tauri::AppHandle, url: String) -> Result<(), Stri
 async fn hide_breakshield(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("breakshield") {
         let _ = w.close();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn hide_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.hide();
     }
     Ok(())
 }
@@ -348,36 +338,15 @@ fn acquire_instance_lock() -> bool {
     }
 }
 
-/// Handle breakshield focus loss on Wayland: pause timer
-#[cfg(target_os = "linux")]
-fn handle_breakshield_focus_loss(app: AppHandle) {
-    tauri::async_runtime::spawn(async move {
-        // Try to regain focus immediately
-        if let Some(window) = app.get_webview_window("breakshield") {
-            let _ = window.set_always_on_top(true);
-            let _ = window.set_focus();
-        }
-        
-        // Pause the timer (real friction - no credit for escaped time)
-        if let Some(state) = app.try_state::<AppState>() {
-            let mut timer = state.timer.lock().await;
-            timer.pause();
-        }
-    });
-}
-
-/// Handle breakshield focus gain on Wayland: resume timer
-#[cfg(target_os = "linux")]
-fn handle_breakshield_focus_gain(app: AppHandle) {
-    tauri::async_runtime::spawn(async move {
-        if let Some(state) = app.try_state::<AppState>() {
-            let mut timer = state.timer.lock().await;
-            timer.resume();
-        }
-    });
-}
-
 fn main() {
+    #[cfg(target_os = "linux")]
+    {
+        // Force X11 backend for GTK to avoid Wayland decoration issues (unresponsive buttons)
+        if std::env::var("GDK_BACKEND").is_err() {
+            std::env::set_var("GDK_BACKEND", "x11");
+        }
+    }
+
     #[cfg(target_os = "linux")]
     if !acquire_instance_lock() {
         std::process::exit(0);
@@ -645,6 +614,7 @@ fn main() {
             show_settings,
             complete_break,
             get_about_info,
+            hide_main_window,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -707,24 +677,11 @@ fn main() {
                 }
                 RunEvent::WindowEvent {
                     label,
-                    event: WindowEvent::Focused(focused),
+                    event: WindowEvent::Focused(_focused),
                     ..
                 } => {
-                    // Wayland-only: Pause timer on focus loss
-                    #[cfg(target_os = "linux")]
-                    if label == "breakshield" {
-                        let is_wayland = std::env::var("XDG_SESSION_TYPE")
-                            .unwrap_or_default()
-                            .to_lowercase() == "wayland";
-                        
-                        if is_wayland {
-                            if !focused {
-                                handle_breakshield_focus_loss(app_handle.clone());
-                            } else {
-                                handle_breakshield_focus_gain(app_handle.clone());
-                            }
-                        }
-                    }
+                    // Focus events - no special handling needed with X11
+                    let _ = label;
                 }
                 RunEvent::Exit => {
                     // Clean up tray icon on exit to prevent ghost icons on Linux

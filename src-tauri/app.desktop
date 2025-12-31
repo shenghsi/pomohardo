@@ -1,0 +1,8 @@
+[Desktop Entry]
+Categories=Utility;
+Comment=A cross-platform pomodoro timer that enforces breaks
+Exec=/usr/bin/pomohardo
+Icon=pomohardo
+Name=Pomohardo
+Terminal=false
+Type=Application
