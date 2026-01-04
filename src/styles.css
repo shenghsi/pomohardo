@@ -463,7 +463,7 @@ body.break-active .tabs {
 .break-timer .emergency-limit-msg {
     margin-top: calc(var(--break-timer-width) * 0.02);
     margin-bottom: calc(var(--break-timer-width) * 0.01);
-    font-size: calc(var(--break-timer-width) * 0.02);
+    font-size: calc(var(--break-timer-width) * 0.03);
     color: #f07167;
 }
 
@@ -481,7 +481,7 @@ body.break-active .tabs {
 }
 
 .emergency-instruction {
-    font-size: calc(var(--break-timer-width) * 0.03);
+    font-size: calc(var(--break-timer-width) * 0.04);
     color: #888;
     text-align: center;
     padding: calc(var(--break-timer-width) * 0.01) calc(var(--break-timer-width) * 0.02);
