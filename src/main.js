@@ -12,7 +12,7 @@ let frozenWorkState = null; // Stores last work state to freeze main window duri
 // DOM Elements (will be initialized after DOM is ready)
 let tabs, tabContents, timeDisplay, phaseLabel, sessionCount, breakDebt, emergencySkips;
 let progressCircle, pauseBtn, pauseIcon, skipBtn, settingsBtn, breakOverlay;
-let breakTimeDisplay, breakPhaseLabel, breakTimeUpContainer;
+let breakTimeDisplay, breakPhaseLabel, breakTimeUpContainer, breakTimer;
 let emergencySkipContainer, holdProgressBar, holdProgressText;
 let confirmWordContainer, confirmWordInput, confirmSkipBtn, confirmInstruction;
 let emergencyLimitMsg;
@@ -136,6 +136,7 @@ function createBreakScreen() {
 
     // Now get references to the created elements
     breakOverlay = document.getElementById('breakOverlay');
+    breakTimer = document.querySelector('.break-timer');
     breakTimeDisplay = document.getElementById('breakTimeDisplay');
     breakPhaseLabel = document.getElementById('breakPhaseLabel');
     breakTimeUpContainer = document.getElementById('breakTimeUpContainer');
@@ -689,12 +690,16 @@ function updateUI(overrideState) {
             timerState.remaining_seconds === 0;
 
         if (breakTimeUp) {
-            // Hide time display, show break time up message
-            breakTimeDisplay.classList.add('hidden');
+            // Hide entire break timer, show break time up message at top center
+            if (breakTimer) {
+                breakTimer.classList.add('hidden');
+            }
             breakTimeUpContainer.classList.remove('hidden');
         } else {
-            // Show time display, hide break time up message
-            breakTimeDisplay.classList.remove('hidden');
+            // Show break timer, hide break time up message
+            if (breakTimer) {
+                breakTimer.classList.remove('hidden');
+            }
             breakTimeUpContainer.classList.add('hidden');
             const breakMinutes = Math.floor(timerState.remaining_seconds / 60);
             const breakSeconds = timerState.remaining_seconds % 60;

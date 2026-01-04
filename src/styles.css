@@ -433,7 +433,7 @@ body.break-active .tabs {
 /* BOX2: display when time is up, for break time-up message */
 .break-time-up-container {
     position: absolute;
-    top: 50%;
+    top: 20%;
     left: 50%;
     width: calc(var(--break-timer-width) * 1.1);
     transform: translateX(-50%);
