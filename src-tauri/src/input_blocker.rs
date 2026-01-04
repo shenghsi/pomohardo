@@ -3,6 +3,8 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::HINSTANCE;
@@ -15,9 +17,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
 pub struct InputBlocker {
     active: Arc<AtomicBool>,
     #[cfg(target_os = "linux")]
-    x11: Option<X11GrabState>,
+    x11: Option<Arc<X11GrabState>>,
     #[cfg(target_os = "windows")]
     windows: Option<WindowsHookState>,
+    #[cfg(target_os = "linux")]
+    release_thread: Option<thread::JoinHandle<()>>,
 }
 
 #[cfg(target_os = "windows")]
@@ -93,6 +97,8 @@ impl InputBlocker {
             x11: None,
             #[cfg(target_os = "windows")]
             windows: None,
+            #[cfg(target_os = "linux")]
+            release_thread: None,
         }
     }
 
@@ -283,14 +289,85 @@ impl InputBlocker {
             }
 
             x11::xlib::XFlush(display);
-            self.x11 = Some(X11GrabState { display, root });
+            let x11_state = Arc::new(X11GrabState { display, root });
+            self.x11 = Some(x11_state.clone());
         }
+
+        // Start a background thread to periodically release the grab
+        // This allows the system to detect idle time for screen lock
+        let active_flag = self.active.clone();
+        let x11_state_for_thread = self.x11.as_ref().unwrap().clone();
+        
+        let handle = thread::spawn(move || {
+            // Release grab every 300ms for 150ms to allow system idle detection and screen lock
+            // This very frequent release gives the screen locker many opportunities to grab input
+            // The screen lock mechanism can grab during any of the 150ms release windows
+            loop {
+                thread::sleep(Duration::from_millis(300));
+                
+                // Check if still active
+                if !active_flag.load(Ordering::SeqCst) {
+                    break;
+                }
+                
+                // Release grabs to allow system events (like screen lock) to process
+                unsafe {
+                    x11::xlib::XUngrabPointer(x11_state_for_thread.display, x11::xlib::CurrentTime);
+                    x11::xlib::XUngrabKeyboard(x11_state_for_thread.display, x11::xlib::CurrentTime);
+                    x11::xlib::XFlush(x11_state_for_thread.display);
+                }
+                
+                // Wait 150ms to allow system to check for idle and attempt screen lock
+                // This window should be sufficient for the screen locker to grab
+                thread::sleep(Duration::from_millis(150));
+                
+                // Re-grab if still active
+                if active_flag.load(Ordering::SeqCst) {
+                    unsafe {
+                        // Re-grab keyboard
+                        let _ = x11::xlib::XGrabKeyboard(
+                            x11_state_for_thread.display,
+                            x11_state_for_thread.root,
+                            x11::xlib::True,
+                            x11::xlib::GrabModeAsync,
+                            x11::xlib::GrabModeAsync,
+                            x11::xlib::CurrentTime,
+                        );
+                        
+                        // Re-grab pointer
+                        let event_mask = (x11::xlib::ButtonPressMask
+                            | x11::xlib::ButtonReleaseMask
+                            | x11::xlib::PointerMotionMask) as u32;
+                        let _ = x11::xlib::XGrabPointer(
+                            x11_state_for_thread.display,
+                            x11_state_for_thread.root,
+                            x11::xlib::True,
+                            event_mask,
+                            x11::xlib::GrabModeAsync,
+                            x11::xlib::GrabModeAsync,
+                            0,
+                            0,
+                            x11::xlib::CurrentTime,
+                        );
+                        
+                        x11::xlib::XFlush(x11_state_for_thread.display);
+                    }
+                }
+            }
+        });
+        
+        self.release_thread = Some(handle);
 
         Ok(())
     }
 
     #[cfg(target_os = "linux")]
     fn deactivate_linux(&mut self) -> Result<(), String> {
+        // Stop the release thread first
+        if let Some(handle) = self.release_thread.take() {
+            let _ = handle.join();
+        }
+        
         let Some(state) = self.x11.take() else {
             return Ok(());
         };
@@ -332,8 +409,8 @@ impl InputBlocker {
         }
 
         // If we don't already have a display, open a temporary one for querying.
-        let (display, close_after) = match self.x11 {
-            Some(ref s) => (s.display, false),
+        let (display, close_after) = match &self.x11 {
+            Some(s) => (s.display, false),
             None => unsafe {
                 let d = x11::xlib::XOpenDisplay(std::ptr::null());
                 if d.is_null() {

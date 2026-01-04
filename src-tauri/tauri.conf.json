@@ -1,6 +1,6 @@
 {
   "productName": "Pomohardo",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "identifier": "com.pomohardo",
   "build": {
     "frontendDist": "../src",

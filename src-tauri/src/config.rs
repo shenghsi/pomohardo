@@ -1,12 +1,20 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
 use std::io;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DailyLimitState {
     pub locked_date: Option<String>, // YYYY-MM-DD (Local)
     pub locked_limit: Option<u32>,
+    // Session stats persistence
+    #[serde(default)]
+    pub session_count: u32,
+    #[serde(default)]
+    pub break_debt_seconds: u32,
+    #[serde(default)]
+    pub emergency_skips_today: u32,
+    pub last_skip_reset_date: Option<String>, // YYYY-MM-DD
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,7 +69,7 @@ impl Config {
         let config_dir = dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("pomohardo");
-        
+
         fs::create_dir_all(&config_dir).ok();
         config_dir.join("config.toml")
     }
@@ -116,4 +124,3 @@ pub fn save_daily_limit_state(state: &DailyLimitState) -> Result<(), io::Error> 
 
     Ok(())
 }
-

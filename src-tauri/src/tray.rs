@@ -1,11 +1,11 @@
-use image::{codecs::png::PngEncoder, ImageEncoder, ImageBuffer, Rgba, RgbaImage};
+use image::{codecs::png::PngEncoder, ImageBuffer, ImageEncoder, Rgba, RgbaImage};
 use std::f32::consts::PI;
 use std::sync::Arc;
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, Emitter,
+    AppHandle, Emitter, Manager,
 };
 use tokio::sync::Mutex;
 
@@ -18,13 +18,13 @@ const RADIUS: f32 = CENTER - RING_WIDTH / 2.0 - 3.0;
 
 // Background color (matches icon.svg background)
 const BACKGROUND_COLOR: Rgba<u8> = Rgba([44, 62, 80, 255]); // #2c3e50
-// Tomato/pomodoro color for work phase
+                                                            // Tomato/pomodoro color for work phase
 const WORK_COLOR: Rgba<u8> = Rgba([231, 76, 60, 255]); // #E74C3C
-// Gray for the track (matches work session background ring)
+                                                       // Gray for the track (matches work session background ring)
 const TRACK_COLOR: Rgba<u8> = Rgba([138, 138, 138, 150]); // #8a8a8a
-// Green for break phase
+                                                          // Green for break phase
 const BREAK_COLOR: Rgba<u8> = Rgba([46, 204, 113, 255]); // #2ECC71
-// White for play symbol
+                                                         // White for play symbol
 const PLAY_SYMBOL_COLOR: Rgba<u8> = Rgba([255, 255, 255, 255]); // #FFFFFF
 
 /// Draw a play triangle symbol in the center
@@ -32,45 +32,45 @@ fn draw_play_symbol(img: &mut RgbaImage, color: Rgba<u8>) {
     let play_size = 13.0; // Size of the play triangle
     let play_center_x = CENTER;
     let play_center_y = CENTER;
-    
+
     // Play triangle: three points forming a right-pointing triangle
     // Tip (right), Top-Left, Bottom-Left
     let tip_x = play_center_x + play_size * 0.58;
     let tip_y = play_center_y;
-    
+
     let base_x = play_center_x - play_size * 0.29;
     let top_y = play_center_y - play_size * 0.5;
     let bottom_y = play_center_y + play_size * 0.5;
-    
+
     // Draw triangle using barycentric coordinates
     for y in 0..ICON_SIZE {
         for x in 0..ICON_SIZE {
             let px = x as f32;
             let py = y as f32;
-            
+
             // Barycentric coordinates
             // Triangle vertices: A(base_x, top_y), B(base_x, bottom_y), C(tip_x, tip_y)
-            
+
             // Vectors from A
             let v0x = 0.0; // B.x - A.x
             let v0y = bottom_y - top_y; // B.y - A.y
-            
+
             let v1x = tip_x - base_x; // C.x - A.x
             let v1y = tip_y - top_y; // C.y - A.y
-            
+
             let v2x = px - base_x; // P.x - A.x
             let v2y = py - top_y; // P.y - A.y
-            
+
             let dot00 = v0x * v0x + v0y * v0y;
             let dot01 = v0x * v1x + v0y * v1y;
             let dot02 = v0x * v2x + v0y * v2y;
             let dot11 = v1x * v1x + v1y * v1y;
             let dot12 = v1x * v2x + v1y * v2y;
-            
+
             let inv_denom = 1.0 / (dot00 * dot11 - dot01 * dot01);
             let u = (dot11 * dot02 - dot01 * dot12) * inv_denom;
             let v = (dot00 * dot12 - dot01 * dot02) * inv_denom;
-            
+
             // Check if point is inside triangle
             if u >= 0.0 && v >= 0.0 && (u + v) <= 1.0 {
                 // Anti-aliasing: fade edges (but keep center fully visible)
@@ -96,7 +96,7 @@ pub fn generate_ring_icon(progress: f32, phase: Phase, is_paused: bool) -> Vec<u
             let dx = x as f32 - CENTER + 0.5; // Center of pixel
             let dy = y as f32 - CENTER + 0.5;
             let dist = (dx * dx + dy * dy).sqrt();
-            
+
             if dist <= bg_radius {
                 // Anti-aliasing at the edge
                 let edge_dist = bg_radius - dist;
@@ -157,7 +157,7 @@ pub fn generate_ring_icon(progress: f32, phase: Phase, is_paused: bool) -> Vec<u
             }
         }
     }
-    
+
     // If paused, draw play symbol in the center
     if is_paused {
         draw_play_symbol(&mut img, PLAY_SYMBOL_COLOR);
@@ -180,8 +180,41 @@ pub fn generate_ring_icon(progress: f32, phase: Phase, is_paused: bool) -> Vec<u
 
 /// Create the system tray icon
 /// Returns the tray icon and reference to pause/resume toggle menu item for dynamic updates
-pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), Box<dyn std::error::Error>> {
-    // Create menu items
+pub fn create_tray(
+    app: &AppHandle,
+) -> Result<(TrayIcon, MenuItem<tauri::Wry>), Box<dyn std::error::Error>> {
+    use std::sync::{Mutex, OnceLock};
+
+    // Double-guard: OnceLock for in-process protection, Mutex for thread safety
+    static TRAY_CREATED: OnceLock<bool> = OnceLock::new();
+    static TRAY_MUTEX: Mutex<()> = Mutex::new(());
+
+    // Acquire mutex to ensure no concurrent tray creation attempts
+    let _guard = TRAY_MUTEX.lock().unwrap();
+
+    // Check if already created first (before doing any work)
+    let is_first_creation = TRAY_CREATED.set(true).is_ok();
+
+    if !is_first_creation {
+        eprintln!("[pomohardo] create_tray called again - returning existing tray");
+        // Tray already created - return the existing one
+        if let Some(existing_tray) = app.tray_by_id("pomohardo-tray") {
+            // Create fresh menu items for the return value
+            let pause_resume_item =
+                MenuItem::with_id(app, "pause_resume", "Pause", true, None::<&str>)?;
+            let _ = existing_tray.set_visible(true);
+            return Ok((existing_tray, pause_resume_item));
+        }
+        // This should never happen - tray marked as created but doesn't exist
+        eprintln!("[pomohardo] ERROR: Tray marked as created but not found!");
+    }
+
+    eprintln!(
+        "[pomohardo] Creating tray icon for the first time (PID: {})",
+        std::process::id()
+    );
+
+    // Create menu items (always fresh - they're cheap to create)
     let show_item = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
     let pause_resume_item = MenuItem::with_id(app, "pause_resume", "Pause", true, None::<&str>)?;
     let prefs_item = MenuItem::with_id(app, "preferences", "Preferences", true, None::<&str>)?;
@@ -189,21 +222,20 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
     // Create menu
-    let menu = Menu::with_items(app, &[&show_item, &pause_resume_item, &prefs_item, &about_item, &quit_item])?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &show_item,
+            &pause_resume_item,
+            &prefs_item,
+            &about_item,
+            &quit_item,
+        ],
+    )?;
 
     // Generate initial icon (full ring, work phase, not paused)
     let icon_data = generate_ring_icon(1.0, Phase::Work, false);
     let icon = Image::from_bytes(&icon_data)?;
-
-    // Remove any existing tray with our ID to prevent duplicates
-    // This can happen on autostart race conditions or if the app crashed without cleanup
-    if let Some(existing_tray) = app.tray_by_id("pomohardo-tray") {
-        // Hide and drop the existing tray - dropping should trigger cleanup
-        let _ = existing_tray.set_visible(false);
-        drop(existing_tray);
-        // Small delay to let the system tray update
-        std::thread::sleep(std::time::Duration::from_millis(100));
-    }
 
     // Build the tray icon
     let tray = TrayIconBuilder::with_id("pomohardo-tray")
@@ -215,7 +247,7 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
             // Check if breakshield window is open (break is active)
             // During breaks, only allow viewing the break overlay - no other actions
             let is_break_active = app.get_webview_window("breakshield").is_some();
-            
+
             match event.id.as_ref() {
                 "show" => {
                     if is_break_active {
@@ -238,35 +270,37 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
                         eprintln!("Cannot pause/resume during break - break enforcement is active");
                         return;
                     }
-                            // Toggle pause/resume based on current timer state
-                            let app_handle = app.clone();
-                            tauri::async_runtime::spawn(async move {
-                                if let Some(state) = app_handle.try_state::<crate::AppState>() {
-                                    let mut timer = state.timer.lock().await;
-                                    let current_status = timer.get_state().status;
-                                    match current_status {
-                                        TimerStatus::Running => {
-                                            timer.pause();
-                                        }
-                                        TimerStatus::Paused => {
-                                            timer.resume();
-                                        }
-                                        TimerStatus::Stopped => {
-                                            // Do nothing if stopped
-                                        }
-                                    }
-                                    // Drop lock before emitting to avoid holding it during async operations (though emit is fast)
-                                    drop(timer);
-                                    
-                                    // Trigger immediate update
-                                    app_handle.emit("refresh-tray-icon", ()).ok();
+                    // Toggle pause/resume based on current timer state
+                    let app_handle = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Some(state) = app_handle.try_state::<crate::AppState>() {
+                            let mut timer = state.timer.lock().await;
+                            let current_status = timer.get_state().status;
+                            match current_status {
+                                TimerStatus::Running => {
+                                    timer.pause();
                                 }
-                            });
+                                TimerStatus::Paused => {
+                                    timer.resume();
+                                }
+                                TimerStatus::Stopped => {
+                                    // Do nothing if stopped
+                                }
+                            }
+                            // Drop lock before emitting to avoid holding it during async operations (though emit is fast)
+                            drop(timer);
+
+                            // Trigger immediate update
+                            app_handle.emit("refresh-tray-icon", ()).ok();
+                        }
+                    });
                 }
                 "preferences" => {
                     if is_break_active {
                         // Cannot open preferences during break
-                        eprintln!("Cannot open preferences during break - break enforcement is active");
+                        eprintln!(
+                            "Cannot open preferences during break - break enforcement is active"
+                        );
                         return;
                     }
                     if let Err(e) = crate::open_settings_window(app) {
@@ -302,7 +336,7 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
             } = event
             {
                 let app = tray.app_handle();
-                
+
                 // Check if breakshield window is open (break is active)
                 if let Some(breakshield) = app.get_webview_window("breakshield") {
                     // During break, focus the breakshield window instead of toggling main
@@ -310,7 +344,7 @@ pub fn create_tray(app: &AppHandle) -> Result<(TrayIcon, MenuItem<tauri::Wry>), 
                     let _ = breakshield.set_focus();
                     return;
                 }
-                
+
                 if let Some(window) = app.get_webview_window("main") {
                     if window.is_visible().unwrap_or(false) {
                         let _ = window.hide();

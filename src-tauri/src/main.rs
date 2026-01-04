@@ -1,17 +1,19 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod config;
 mod about;
+mod config;
 mod input_blocker;
 mod timer;
 mod tray;
 
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
-use tauri::{Emitter, Manager, Listener, WebviewUrl, WebviewWindowBuilder, RunEvent, WindowEvent, AppHandle};
+use tauri::{
+    AppHandle, Emitter, Listener, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+};
 use tauri_plugin_autostart::MacosLauncher;
+use tokio::sync::Mutex;
 
 #[derive(Clone)]
 struct AppState {
@@ -29,7 +31,7 @@ struct AboutInfo {
 #[tauri::command]
 async fn get_about_info(app: AppHandle) -> Result<AboutInfo, String> {
     use base64::{engine::general_purpose, Engine as _};
-    
+
     let version = app.package_info().version.to_string();
     let icon_data = include_bytes!("../icons/icon.svg");
     let icon_base64 = general_purpose::STANDARD.encode(icon_data);
@@ -72,7 +74,9 @@ async fn skip_work(state: tauri::State<'_, AppState>) -> Result<(), String> {
 async fn request_emergency_skip(state: tauri::State<'_, AppState>) -> Result<bool, String> {
     let mut timer = state.timer.lock().await;
     let config = state.config.lock().await;
-    timer.request_emergency_skip(&config).map_err(|e| e.to_string())
+    timer
+        .request_emergency_skip(&config)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -111,7 +115,7 @@ async fn update_config(
 
     {
         let mut config = state.config.lock().await;
-        
+
         // Handle auto-start changes
         if config.auto_start != new_config.auto_start {
             use tauri_plugin_autostart::ManagerExt;
@@ -311,7 +315,8 @@ fn acquire_instance_lock() -> bool {
             // Directory exists.
             // 1. Check if the lock is held by a valid process.
             // we loop a few times to handle the race where P1 created dir but hasn't written PID yet.
-            for _ in 0..10 {
+            // On high load (login), this might take a second or two. We wait up to 5s.
+            for _ in 0..50 {
                 if let Ok(content) = fs::read_to_string(&pid_file) {
                     if let Ok(pid) = content.trim().parse::<i32>() {
                         if Path::new(&format!("/proc/{}", pid)).exists() {
@@ -319,19 +324,19 @@ fn acquire_instance_lock() -> bool {
                             return false; // Valid lock found, we are duplicate.
                         } else {
                             // PID file exists but process is dead. Stale lock.
-                            break; 
+                            break;
                         }
                     }
                 }
                 // PID file missing or unreadable (maybe P1 is writing). Wait and retry.
-                thread::sleep(Duration::from_millis(50));
+                thread::sleep(Duration::from_millis(100));
             }
-            
+
             // If we are here, either the process is dead (stale) or we timed out waiting for PID file.
             // We interpret this as "No valid instance running".
             // Remove stale lock.
             let _ = fs::remove_dir_all(&lock_dir);
-            
+
             // Retry acquisition once
             if fs::create_dir(&lock_dir).is_ok() {
                 let pid = std::process::id();
@@ -345,13 +350,89 @@ fn acquire_instance_lock() -> bool {
     }
 }
 
+/// Clean up stale StatusNotifier registrations from previous sessions on Linux.
+/// This helps prevent duplicate tray icons when the app restarts.
+#[cfg(target_os = "linux")]
+fn cleanup_stale_tray() {
+    use std::fs;
+
+    // Write our PID to a tray lock file
+    let tray_lock_path = get_tray_lock_path();
+
+    // Check if there's an old tray lock from a dead process
+    if let Ok(old_pid_str) = fs::read_to_string(&tray_lock_path) {
+        if let Ok(old_pid) = old_pid_str.trim().parse::<u32>() {
+            // Check if the old process is still running
+            let proc_path = format!("/proc/{}", old_pid);
+            if !std::path::Path::new(&proc_path).exists() {
+                // Old process is dead - the stale tray icon should clean up
+                // Wait a bit to let the system tray service notice the process is gone
+                eprintln!(
+                    "[pomohardo] Previous session PID {} is dead, waiting for tray cleanup",
+                    old_pid
+                );
+                std::thread::sleep(std::time::Duration::from_secs(2));
+            }
+        }
+    }
+
+    // Write our current PID
+    let _ = fs::write(&tray_lock_path, std::process::id().to_string());
+}
+
+#[cfg(target_os = "linux")]
+fn get_tray_lock_path() -> std::path::PathBuf {
+    std::env::temp_dir().join("pomohardo_tray.lock")
+}
+
 fn main() {
+    // On Linux autostart, add an initial delay BEFORE anything else
+    // This gives the desktop environment time to fully initialize
+    #[cfg(target_os = "linux")]
+    {
+        let args: Vec<String> = std::env::args().collect();
+        if args.contains(&"--minimized".to_string()) {
+            // Autostart mode - wait for system to settle
+            // Check system uptime to see if this is a fresh boot (within 2 minutes)
+            let is_fresh_boot = match std::fs::read_to_string("/proc/uptime") {
+                Ok(content) => {
+                    if let Some(uptime_str) = content.split_whitespace().next() {
+                        uptime_str.parse::<f64>().unwrap_or(999.0) < 120.0
+                    } else {
+                        false
+                    }
+                }
+                Err(_) => false,
+            };
+
+            if is_fresh_boot {
+                // Fresh boot - wait longer for the desktop environment to fully initialize
+                eprintln!(
+                    "[pomohardo] Fresh boot detected, waiting 8 seconds for DE to initialize"
+                );
+                std::thread::sleep(std::time::Duration::from_secs(8));
+            } else {
+                // Regular autostart (e.g., after logout/login) - shorter wait
+                eprintln!("[pomohardo] Autostart mode, waiting 3 seconds");
+                std::thread::sleep(std::time::Duration::from_secs(3));
+            }
+        }
+    }
+
     #[cfg(target_os = "linux")]
     {
         // Force X11 backend for GTK to avoid Wayland decoration issues (unresponsive buttons)
         if std::env::var("GDK_BACKEND").is_err() {
             std::env::set_var("GDK_BACKEND", "x11");
         }
+
+        // Disable session management integration.
+        // This prevents the desktop environment from "saving" the app state on logout and restarting it on login,
+        // which leads to duplicate instances (one from autostart, one from session restore).
+        std::env::remove_var("SESSION_MANAGER");
+
+        // Clean up any stale tray registrations from previous sessions
+        cleanup_stale_tray();
     }
 
     #[cfg(target_os = "linux")]
@@ -377,19 +458,20 @@ fn main() {
             use std::sync::atomic::{AtomicBool, Ordering};
             static INITIALIZED: AtomicBool = AtomicBool::new(false);
             if INITIALIZED.swap(true, Ordering::SeqCst) {
-                 return Ok(());
+                return Ok(());
             }
 
             // macOS: Create custom app menu with controlled Quit behavior
             #[cfg(target_os = "macos")]
             {
-                use tauri::menu::{Menu, Submenu, MenuItem, PredefinedMenuItem};
-                
+                use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+
                 let app_handle = app.handle();
-                
+
                 // Create custom Quit menu item
-                let quit_item = MenuItem::with_id(app_handle, "quit", "Quit Pomohardo", true, Some("Cmd+Q"))?;
-                
+                let quit_item =
+                    MenuItem::with_id(app_handle, "quit", "Quit Pomohardo", true, Some("Cmd+Q"))?;
+
                 // Create app submenu
                 let app_submenu = Submenu::with_items(
                     app_handle,
@@ -407,7 +489,7 @@ fn main() {
                         &quit_item,
                     ],
                 )?;
-                
+
                 // Create Edit submenu for standard text editing
                 let edit_submenu = Submenu::with_items(
                     app_handle,
@@ -423,7 +505,7 @@ fn main() {
                         &PredefinedMenuItem::select_all(app_handle, None)?,
                     ],
                 )?;
-                
+
                 // Create Window submenu
                 let window_submenu = Submenu::with_items(
                     app_handle,
@@ -435,13 +517,14 @@ fn main() {
                         &PredefinedMenuItem::close_window(app_handle, None)?,
                     ],
                 )?;
-                
+
                 // Build the menu
-                let menu = Menu::with_items(app_handle, &[&app_submenu, &edit_submenu, &window_submenu])?;
-                
+                let menu =
+                    Menu::with_items(app_handle, &[&app_submenu, &edit_submenu, &window_submenu])?;
+
                 // Set the menu
                 app.set_menu(menu)?;
-                
+
                 // Handle custom quit menu item
                 app.on_menu_event(move |app, event| {
                     if event.id().as_ref() == "quit" {
@@ -464,12 +547,8 @@ fn main() {
             let args: Vec<String> = std::env::args().collect();
             let start_minimized = args.contains(&"--minimized".to_string());
 
-            // On autostart (--minimized), add a small delay to let the system settle
-            // This helps prevent duplicate tray icons on Linux after login
-            #[cfg(target_os = "linux")]
-            if start_minimized {
-                std::thread::sleep(Duration::from_millis(500));
-            }
+            // Note: The delay for autostart is now at the very beginning of main()
+            // before any Tauri initialization, to prevent race conditions
 
             if !start_minimized {
                 if let Some(window) = app.get_webview_window("main") {
@@ -487,14 +566,14 @@ fn main() {
             };
 
             // Create system tray icon
-            let (tray, pause_resume_item) = tray::create_tray(app.handle())
-                .expect("Failed to create system tray");
-            
+            let (tray, pause_resume_item) =
+                tray::create_tray(app.handle()).expect("Failed to create system tray");
+
             let app_handle = app.handle().clone();
             let timer_clone = app_state.timer.clone();
             let tray_clone = tray.clone();
             let pause_resume_item_clone = pause_resume_item.clone();
-            
+
             // Listen for tray update requests (e.g. from menu clicks)
             let tray_for_event = tray.clone();
             let item_for_event = pause_resume_item.clone();
@@ -519,24 +598,27 @@ fn main() {
                     loop {
                         // Very aggressive: check every 25ms to fight Force Quit dialog and Cmd+Tab
                         std::thread::sleep(Duration::from_millis(25));
-                        
-                        if let Some(breakshield) = app_handle_focus.get_webview_window("breakshield") {
+
+                        if let Some(breakshield) =
+                            app_handle_focus.get_webview_window("breakshield")
+                        {
                             // Check if input blocking is active - if not, don't enforce focus
                             // This allows user interaction when break time is up
                             let blocker_active = {
-                                let blocker = futures::executor::block_on(input_blocker_for_focus.lock());
+                                let blocker =
+                                    futures::executor::block_on(input_blocker_for_focus.lock());
                                 blocker.is_active()
                             };
-                            
+
                             if !blocker_active {
                                 // Input blocking is deactivated (break time is up), don't enforce focus
                                 continue;
                             }
-                            
+
                             // Always try to keep breakshield on top and focused during active break
                             // This fights against Force Quit dialog and other system windows
                             let _ = breakshield.set_always_on_top(true);
-                            
+
                             // Always try to refocus - don't even check if focused first
                             // This is more aggressive and helps steal focus back from Force Quit dialog
                             let _ = breakshield.set_focus();
@@ -552,20 +634,26 @@ fn main() {
 
                 loop {
                     std::thread::sleep(Duration::from_secs(1));
-                    
+
                     // Use blocking lock since we're in a regular thread
                     let mut timer = futures::executor::block_on(timer_clone.lock());
-                    
+
                     // Check if phase transition is needed
                     let transitioned = timer.check_and_transition();
-                    
+
                     let current_state = timer.get_state();
                     let current_phase = current_state.phase;
                     drop(timer);
 
                     // Update tray icon with current progress
                     rt.block_on(async {
-                        if let Err(e) = tray::update_tray_icon(&tray_clone, &timer_clone, &pause_resume_item_clone).await {
+                        if let Err(e) = tray::update_tray_icon(
+                            &tray_clone,
+                            &timer_clone,
+                            &pause_resume_item_clone,
+                        )
+                        .await
+                        {
                             eprintln!("Failed to update tray icon: {}", e);
                         }
                     });
@@ -573,7 +661,7 @@ fn main() {
                     // Emit event if phase changed
                     if transitioned || last_phase != current_phase {
                         last_phase = current_phase;
-                        
+
                         let phase_name = match current_phase {
                             timer::Phase::Work => "work",
                             timer::Phase::Break => "break",
@@ -581,7 +669,7 @@ fn main() {
                         };
 
                         app_handle.emit("phase-changed", phase_name).ok();
-                        
+
                         // Emit break started event
                         if matches!(current_phase, timer::Phase::Break | timer::Phase::LongBreak) {
                             let break_type = if matches!(current_phase, timer::Phase::LongBreak) {
@@ -589,9 +677,12 @@ fn main() {
                             } else {
                                 "Break"
                             };
-                            
+
                             app_handle
-                                .emit("break-started", format!("{} time! Take a break.", break_type))
+                                .emit(
+                                    "break-started",
+                                    format!("{} time! Take a break.", break_type),
+                                )
                                 .ok();
                         }
                     }
@@ -651,9 +742,9 @@ fn main() {
                     if label == "breakshield" {
                         return;
                     }
-                    
+
                     let breakshield_exists = app_handle.get_webview_window("breakshield").is_some();
-                    
+
                     // During break (breakshield exists), prevent closing other windows
                     if breakshield_exists {
                         api.prevent_close();
@@ -664,7 +755,7 @@ fn main() {
                         }
                         return;
                     }
-                    
+
                     // For main window, hide instead of close
                     if label == "main" {
                         api.prevent_close();
@@ -694,16 +785,19 @@ fn main() {
                     if let Some(tray) = app_handle.tray_by_id("pomohardo-tray") {
                         let _ = tray.set_visible(false);
                     }
-                    
+
                     // Clean up the instance lock on Linux
                     #[cfg(target_os = "linux")]
                     {
                         let lock_dir = std::env::temp_dir().join("pomohardo_lock");
                         let _ = std::fs::remove_dir_all(&lock_dir);
+
+                        // Also clean up the tray lock file
+                        let tray_lock = get_tray_lock_path();
+                        let _ = std::fs::remove_file(&tray_lock);
                     }
                 }
                 _ => {}
             }
         });
 }
-
