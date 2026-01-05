@@ -93,9 +93,6 @@ function calculateBreakshieldSizes() {
     root.style.setProperty('--break-time-up-width', `${breakTimeUpWidth}px`);
     root.style.setProperty('--break-time-up-font-size', `${breakTimeUpFontSize}px`);
     root.style.setProperty('--emergency-skip-width', `${emergencySkipWidth}px`);
-    root.style.setProperty('--hold-progress-width', `${holdProgressWidth}px`);
-    root.style.setProperty('--confirm-word-width', `${confirmWordWidth}px`);
-    root.style.setProperty('--confirm-word-input-width', `${confirmWordInputWidth}px`);
 }
 
 // Create break screen DOM (only called in breakshield mode)
@@ -114,7 +111,7 @@ function createBreakScreen() {
             </div>
             <div class="emergency-skip-container hidden" id="emergencySkipContainer">
                 <p class="emergency-instruction" id="emergencyHoldInstruction">
-                    Hold <kbd id="emergencyKeyCombo">Ctrl+Alt+Shift+E</kbd> for 4 seconds to arm emergency skip
+                    Hold <kbd id="emergencyKeyCombo">Ctrl+Alt+Shift+E</kbd> to arm emergency skip
                 </p>
                 <div class="hold-progress" id="holdProgressContainer">
                     <div class="hold-progress-bar" id="holdProgressBar"></div>

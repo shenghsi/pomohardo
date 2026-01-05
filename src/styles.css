@@ -5,12 +5,15 @@
 }
 
 :root {
-    --break-timer-top: 10%;
-    --break-timer-height: 20%;
-    --emergency-skip-height: 6%;
+    --break-timer-top: calc(var(--break-timer-width) * 0.3);
+    --break-timer-height: calc(var(--break-timer-width) * 0.41);
+    --emergency-skip-height: calc(var(--break-timer-width) * 0.15);
+    --confirm-word-width: var(--break-timer-width);
+    --confirm-word-input-width: calc(var(--break-timer-width) * 0.6);
 }
 
-html, body {
+html,
+body {
     width: 100%;
     height: 100%;
 }
@@ -62,7 +65,8 @@ body.breakshield .confirm-btn {
     border-bottom: 1px solid #3a3a3a;
     position: relative;
     height: 52px;
-    z-index: 3000; /* normal mode stacking */
+    z-index: 3000;
+    /* normal mode stacking */
 }
 
 .tab {
@@ -230,12 +234,14 @@ body.break-active .tabs {
 .control-btn img {
     width: 48px;
     height: 48px;
-    filter: brightness(0) invert(1); /* Make SVG white */
+    filter: brightness(0) invert(1);
+    /* Make SVG white */
     display: block;
 }
 
 #skipBtn img {
-    transform: translateX(1px); /* Fine-tune horizontal centering */
+    transform: translateX(1px);
+    /* Fine-tune horizontal centering */
 }
 
 /* Info */
@@ -414,14 +420,14 @@ body.break-active .tabs {
 }
 
 .break-content .phase-label {
-    font-size: calc(var(--break-timer-width) * 0.07);
+    font-size: calc(var(--break-timer-width) * 0.06);
     color: #aaa;
 }
 
 .break-content .time-display {
     min-width: calc(var(--break-timer-width) * 0.28);
     width: auto;
-    font-size: calc(var(--break-timer-width) * 0.12);
+    font-size: calc(var(--break-timer-width) * 0.1);
     font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
     font-variant-numeric: tabular-nums;
     text-align: center;
@@ -430,44 +436,19 @@ body.break-active .tabs {
     padding: 0 calc(var(--break-timer-width) * 0.01);
 }
 
-/* BOX2: display when time is up, for break time-up message */
-.break-time-up-container {
-    position: absolute;
-    top: 20%;
-    left: 50%;
-    width: calc(var(--break-timer-width) * 1.1);
-    transform: translateX(-50%);
-    margin: 0;
-    text-align: center;
-    background-color: #000;
-    padding: calc(var(--break-timer-width) * 0.02);
-    border-radius: calc(var(--break-timer-width) * 0.02);
-}
-
-.break-time-up-container .break-time-up-msg {
-    font-size: calc(var(--break-timer-width) * 0.04);
-    color: #fff;
-    text-align: center;
-    line-height: 1.5;
-    margin-top: calc(var(--break-timer-width) * 0.02);
-}
-
 .break-timer .break-message {
-    /* margin-top: 40px; */
     padding: calc(var(--break-timer-width) * 0.02) calc(var(--break-timer-width) * 0.01);
-    font-size: calc(var(--break-timer-width) * 0.05);
+    font-size: calc(var(--break-timer-width) * 0.04);
     color: #888;
     text-align: center;
 }
 
 .break-timer .emergency-limit-msg {
-    margin-top: calc(var(--break-timer-width) * 0.02);
-    margin-bottom: calc(var(--break-timer-width) * 0.01);
     font-size: calc(var(--break-timer-width) * 0.03);
     color: #f07167;
 }
 
-/* BOX3: emergency skip message and hold progress */
+/* BOX2: emergency skip message and hold progress */
 .emergency-skip-container {
     position: absolute;
     top: calc(var(--break-timer-top) + var(--break-timer-height));
@@ -480,62 +461,62 @@ body.break-active .tabs {
     background-color: #000;
 }
 
-.emergency-instruction {
-    font-size: calc(var(--break-timer-width) * 0.04);
+.emergency-skip-container .emergency-instruction {
+    font-size: calc(var(--break-timer-width) * 0.03);
     color: #888;
     text-align: center;
-    padding: calc(var(--break-timer-width) * 0.01) calc(var(--break-timer-width) * 0.02);
+    padding: calc(var(--break-timer-width) * 0.02) calc(var(--break-timer-width) * 0.02);
     line-height: 1.8;
 }
 
-.emergency-instruction kbd {
+.emergency-skip-container .emergency-instruction kbd {
     background: #3a3a3a;
     border: 1px solid #555;
-    border-radius: calc(var(--break-timer-width) * 0.02);
-    padding: calc(var(--break-timer-width) * 0.01) calc(var(--break-timer-width) * 0.02);
+    border-radius: calc(var(--break-timer-width) * 0.01);
+    padding: calc(var(--break-timer-width) * 0.005) calc(var(--break-timer-width) * 0.01);
     font-family: monospace;
-    font-size: calc(var(--break-timer-width) * 0.03);
+    font-size: calc(var(--break-timer-width) * 0.025);
     color: #fff;
 }
 
-.hold-progress {
+.emergency-skip-container .hold-progress {
     position: relative;
-    width: var(--hold-progress-width, 320px);
-    height: calc(var(--break-timer-width) * 0.04);
-    margin: calc(var(--break-timer-width) * 0.02) auto calc(var(--break-timer-width) * 0.02);
+    width: var(--break-timer-width);
+    height: calc(var(--break-timer-width) * 0.03);
+    margin: calc(var(--break-timer-width) * 0.01) auto calc(var(--break-timer-width) * 0.02);
     background: #3a3a3a;
-    border-radius: calc(var(--break-timer-width) * 0.2);
+    border-radius: calc(var(--break-timer-width) * 0.15);
     overflow: hidden;
     display: block;
     left: 50%;
     transform: translateX(-50%);
 }
 
-.hold-progress-bar {
+.emergency-skip-container .hold-progress-bar {
     height: 100%;
     width: 0%;
     background: #f07167;
     transition: width 0.1s linear;
-    border-radius: calc(var(--break-timer-width) * 0.2);
+    border-radius: calc(var(--break-timer-width) * 0.15);
 }
 
-.hold-progress span {
+.emergency-skip-container .hold-progress span {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     color: #fff;
-    font-size: calc(var(--break-timer-width) * 0.04);
+    font-size: calc(var(--break-timer-width) * 0.03);
     font-weight: bold;
 }
 
-/* BOX4: confirm word input and button */
+/* BOX3: confirm word input and button */
 .confirm-word-container {
     position: absolute;
     top: calc(var(--break-timer-top) + var(--break-timer-height) + var(--emergency-skip-height));
     left: 50%;
-    width: var(--confirm-word-width, 320px);
-    height: 6%;
+    width: var(--confirm-word-width);
+    height: calc(var(--confirm-word-width) * 0.2);
     transform: translateX(-50%);
     margin: 0;
     text-align: center;
@@ -557,7 +538,7 @@ body.break-active .tabs {
     color: #ffffff;
     font-size: calc(var(--confirm-word-width) * 0.04);
     text-align: center;
-    width: var(--confirm-word-input-width, 200px);
+    width: var(--confirm-word-input-width);
     margin-bottom: calc(var(--confirm-word-width) * 0.02);
     position: relative;
     z-index: 9999;
@@ -585,8 +566,29 @@ body.break-active .tabs {
     color: #ffffff;
 }
 
+/* BOX4: display when time is up, for break time-up message */
+.break-time-up-container {
+    position: absolute;
+    top: var(--break-timer-top);
+    left: 50%;
+    width: calc(var(--break-timer-width) * 1.1);
+    transform: translateX(-50%);
+    margin: 0;
+    text-align: center;
+    background-color: #000;
+    padding: calc(var(--break-timer-width) * 0.02);
+    border-radius: calc(var(--break-timer-width) * 0.02);
+}
+
+.break-time-up-container .break-time-up-msg {
+    font-size: calc(var(--break-timer-width) * 0.04);
+    color: #fff;
+    text-align: center;
+    line-height: 1.5;
+    margin-top: calc(var(--break-timer-width) * 0.02);
+}
+
 /* Hidden utility */
 .hidden {
     display: none !important;
 }
-
