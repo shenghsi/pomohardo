@@ -136,6 +136,7 @@ impl TimerEngine {
 
     pub fn start(&mut self) {
         if self.status == TimerStatus::Stopped {
+            self.reset_daily_stats_if_needed();
             self.start_time = Some(Utc::now());
             self.status = TimerStatus::Running;
             // Don't reset session_count here, it might be restored or continuing today's work
@@ -186,7 +187,7 @@ impl TimerEngine {
             return Err("Emergency skip only allowed during breaks".to_string());
         }
 
-        self.reset_daily_skip_count_if_needed();
+        self.reset_daily_stats_if_needed();
         self.maybe_reset_daily_lock();
 
         let limit = self.effective_emergency_limit_per_day();
@@ -304,6 +305,7 @@ impl TimerEngine {
     }
 
     fn transition_to_work(&mut self, clear_break_debt: bool) {
+        self.reset_daily_stats_if_needed();
         self.phase = Phase::Work;
         self.status = TimerStatus::Running;
         if clear_break_debt {
@@ -316,10 +318,12 @@ impl TimerEngine {
         self.save_state();
     }
 
-    fn reset_daily_skip_count_if_needed(&mut self) {
+    fn reset_daily_stats_if_needed(&mut self) {
         let now = Local::now();
         if now.date_naive() != self.last_skip_reset.date_naive() {
             self.emergency_skips_today = 0;
+            self.session_count = 0;
+            self.break_debt_seconds = 0;
             self.last_skip_reset = now;
             // New day => unlock the daily emergency limit.
             self.limit_locked_date = None;
