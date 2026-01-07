@@ -13,6 +13,7 @@ use tauri::{
     AppHandle, Emitter, Listener, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_notification::NotificationExt;
 use tokio::sync::Mutex;
 
 #[derive(Clone)]
@@ -440,6 +441,7 @@ fn main() {
         std::process::exit(0);
     }
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // When a second instance tries to start, bring the existing window to focus
             if let Some(window) = app.get_webview_window("main") {
@@ -637,6 +639,17 @@ fn main() {
 
                     // Use blocking lock since we're in a regular thread
                     let mut timer = futures::executor::block_on(timer_clone.lock());
+
+                    // Check if notification should be sent
+                    if timer.should_send_notification() {
+                        // Send notification
+                        let _ = app_handle
+                            .notification()
+                            .builder()
+                            .title("Pomohardo")
+                            .body("1 minute remaining in work session")
+                            .show();
+                    }
 
                     // Check if phase transition is needed
                     let transitioned = timer.check_and_transition();

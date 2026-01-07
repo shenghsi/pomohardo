@@ -33,6 +33,8 @@ pub struct Config {
     pub emergency_confirm_timeout_seconds: u32,
     #[serde(default)]
     pub auto_start: bool,
+    #[serde(default)]
+    pub notify_before_work_end: bool,
 }
 
 fn default_emergency_hold_seconds() -> u32 {
@@ -60,6 +62,7 @@ impl Default for Config {
             emergency_confirm_word: "SKIPBREAK".to_string(),
             emergency_confirm_timeout_seconds: 15,
             auto_start: false,
+            notify_before_work_end: false,
         }
     }
 }

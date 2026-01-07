@@ -315,6 +315,16 @@
         </div>
     </div>
 
+    <div class="setting-group">
+        <label for="notifyBeforeWorkEnd">Notify before pomodoro ends</label>
+        <div class="input-wrapper" style="width: auto;">
+            <label class="toggle-switch">
+                <input type="checkbox" id="notifyBeforeWorkEnd">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+    </div>
+
     <div class="save-indicator" id="saveIndicator">
         <span>✓</span> Saved
     </div>
@@ -385,6 +395,7 @@
                 document.getElementById('emergencyConfirmTimeout').value = emergencyConfirmTimeout;
                 lastValidValues['emergencyConfirmTimeout'] = emergencyConfirmTimeout;
                 document.getElementById('autoStart').checked = config.auto_start || false;
+                document.getElementById('notifyBeforeWorkEnd').checked = config.notify_before_work_end || false;
             } catch (error) {
                 console.error('Failed to load config:', error);
             }
@@ -493,6 +504,7 @@
                 emergency_confirm_word: document.getElementById('emergencyConfirmWord').value.trim().toUpperCase() || 'SKIPBREAK',
                 emergency_confirm_timeout_seconds: parseInt(document.getElementById('emergencyConfirmTimeout').value) || 15,
                 auto_start: document.getElementById('autoStart').checked,
+                notify_before_work_end: document.getElementById('notifyBeforeWorkEnd').checked,
             };
 
             try {

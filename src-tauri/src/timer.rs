@@ -47,6 +47,7 @@ pub struct TimerEngine {
     limit_locked_date: Option<NaiveDate>,
     locked_emergency_skips_per_day: Option<u32>,
     config: Config,
+    notification_sent: bool,
 }
 
 impl TimerEngine {
@@ -83,6 +84,7 @@ impl TimerEngine {
             limit_locked_date,
             locked_emergency_skips_per_day,
             config,
+            notification_sent: false,
         }
     }
 
@@ -300,6 +302,7 @@ impl TimerEngine {
         self.start_time = Some(Utc::now());
         self.paused_duration = Duration::ZERO;
         self.pause_time = None;
+        self.notification_sent = false; // Reset for next work session
 
         self.save_state();
     }
@@ -314,6 +317,7 @@ impl TimerEngine {
         self.start_time = Some(Utc::now());
         self.paused_duration = Duration::ZERO;
         self.pause_time = None;
+        self.notification_sent = false; // Reset for new work session
 
         self.save_state();
     }
@@ -366,6 +370,36 @@ impl TimerEngine {
         {
             self.transition_to_work(true);
         }
+    }
+    
+    /// Check if notification should be sent (1 minute before work session ends)
+    /// Returns true if notification should be sent now
+    pub fn should_send_notification(&mut self) -> bool {
+        // Only send notification during work phase
+        if self.phase != Phase::Work || self.status != TimerStatus::Running {
+            return false;
+        }
+        
+        // Only if the feature is enabled
+        if !self.config.notify_before_work_end {
+            return false;
+        }
+        
+        // Only send once per work session
+        if self.notification_sent {
+            return false;
+        }
+        
+        let remaining = self.get_remaining_seconds();
+        
+        // Send notification when exactly 60 seconds (1 minute) remain
+        // We check for <= 61 to account for the 1-second polling interval
+        if remaining <= 61 && remaining > 59 {
+            self.notification_sent = true;
+            return true;
+        }
+        
+        false
     }
 }
 
