@@ -640,6 +640,22 @@ fn main() {
                     // Use blocking lock since we're in a regular thread
                     let mut timer = futures::executor::block_on(timer_clone.lock());
 
+                    // Check if we should auto-start after overnight pause
+                    if timer.should_auto_start_after_overnight_pause() {
+                        timer.auto_start_new_session();
+                        
+                        // Send notification about auto-start
+                        let _ = app_handle
+                            .notification()
+                            .builder()
+                            .title("Pomohardo")
+                            .body("Starting a new work session.")
+                            .show();
+                        
+                        // Emit event to update UI
+                        app_handle.emit("phase-changed", "work").ok();
+                    }
+
                     // Check if notification should be sent
                     if timer.should_send_notification() {
                         // Send notification

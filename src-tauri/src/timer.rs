@@ -48,6 +48,7 @@ pub struct TimerEngine {
     locked_emergency_skips_per_day: Option<u32>,
     config: Config,
     notification_sent: bool,
+    last_activity_check: DateTime<Local>,
 }
 
 impl TimerEngine {
@@ -85,6 +86,7 @@ impl TimerEngine {
             locked_emergency_skips_per_day,
             config,
             notification_sent: false,
+            last_activity_check: Local::now(),
         }
     }
 
@@ -400,6 +402,47 @@ impl TimerEngine {
         }
         
         false
+    }
+
+    /// Check if timer was paused overnight and should auto-start a new work session
+    /// Returns true if auto-start should happen
+    pub fn should_auto_start_after_overnight_pause(&mut self) -> bool {
+        let now = Local::now();
+        
+        // Only check if timer is paused and in work phase
+        if self.status != TimerStatus::Paused || self.phase != Phase::Work {
+            self.last_activity_check = now;
+            return false;
+        }
+        
+        // Check if we've crossed into a new day since last activity check
+        let current_date = now.date_naive();
+        let last_check_date = self.last_activity_check.date_naive();
+        
+        self.last_activity_check = now;
+        
+        // If it's a new day and we were paused, auto-start a new work session
+        if current_date > last_check_date {
+            return true;
+        }
+        
+        false
+    }
+
+    /// Auto-start a new work session (called after overnight pause detection)
+    pub fn auto_start_new_session(&mut self) {
+        // Reset daily stats for the new day
+        self.reset_daily_stats_if_needed();
+        
+        // Start a fresh work session
+        self.phase = Phase::Work;
+        self.status = TimerStatus::Running;
+        self.start_time = Some(Utc::now());
+        self.paused_duration = Duration::ZERO;
+        self.pause_time = None;
+        self.notification_sent = false;
+        
+        self.save_state();
     }
 }
 
