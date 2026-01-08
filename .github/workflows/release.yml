@@ -101,10 +101,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-12'
+          - platform: 'macos-latest'
             args: '--target x86_64-apple-darwin --bundles app,dmg'
             rust_target: 'x86_64-apple-darwin'
-          - platform: 'macos-12'
+          - platform: 'macos-latest'
             args: '--target aarch64-apple-darwin --bundles app,dmg'
             rust_target: 'aarch64-apple-darwin'
 
