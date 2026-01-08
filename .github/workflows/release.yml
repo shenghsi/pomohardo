@@ -97,6 +97,7 @@ jobs:
     needs: create-release
     permissions:
       contents: write
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
