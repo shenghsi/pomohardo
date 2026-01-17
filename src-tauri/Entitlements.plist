@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- Allow network access for the app -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <key>com.apple.security.network.server</key>
+    <true/>
+    <!-- Allow file access -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    <!-- Allow user defaults access -->
+    <key>com.apple.security.files.user-selected.read-only</key>
+    <true/>
+    <!-- Allow access to user's home directory for config files -->
+    <key>com.apple.security.files.downloads.read-write</key>
+    <true/>
+    <!-- Disable app sandbox for now (can enable later if needed) -->
+    <!-- <key>com.apple.security.app-sandbox</key> -->
+    <!-- <true/> -->
+  </dict>
+</plist>
