@@ -84,6 +84,22 @@ For best enforcement, use an X11 session.
 
 Full input blocking is supported via low-level hooks/event taps.
 
+#### macOS Installation Note
+
+When installing the macOS app, you may see a Gatekeeper warning: "Apple could not verify this app is free of malware." This is expected for apps distributed outside the App Store without Developer ID signing.
+
+**To open the app:**
+1. Right-click (or Control-click) the app
+2. Select "Open" from the context menu
+3. Click "Open" in the dialog that appears
+
+Alternatively, you can allow the app in System Settings:
+1. Go to System Settings → Privacy & Security
+2. Scroll down to find the blocked app message
+3. Click "Open Anyway"
+
+**Note:** The app requires Accessibility permissions for input blocking. You'll be prompted to grant this permission on first use.
+
 ## License
 
 GPL-3.0

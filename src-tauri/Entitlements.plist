@@ -16,6 +16,16 @@
     <!-- Allow access to user's home directory for config files -->
     <key>com.apple.security.files.downloads.read-write</key>
     <true/>
+    <!-- Accessibility permissions for input blocking -->
+    <key>com.apple.security.device.input-monitoring</key>
+    <true/>
+    <!-- Hardened Runtime exceptions -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
     <!-- Disable app sandbox for now (can enable later if needed) -->
     <!-- <key>com.apple.security.app-sandbox</key> -->
     <!-- <true/> -->
