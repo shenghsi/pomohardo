@@ -947,6 +947,8 @@ async function updateStats() {
 async function checkForUpdates() {
     try {
         const { check } = await import('@tauri-apps/plugin-updater');
+        const { relaunch } = await import('@tauri-apps/plugin-process');
+        
         const update = await check();
         
         if (update?.available) {
@@ -961,7 +963,6 @@ async function checkForUpdates() {
                 await update.downloadAndInstall();
                 
                 // Restart the app after update
-                const { relaunch } = await import('@tauri-apps/plugin-process');
                 await relaunch();
             }
         }

@@ -79,13 +79,13 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: .
           tagName: ${{ github.ref_name }}
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          args: '--target x86_64-unknown-linux-gnu --bundles deb'
-          updaterJsonPath: ./updater.json
-          updaterJsonKeepUniversal: true
+          args: '--target x86_64-unknown-linux-gnu --bundles deb,updater'
 
       - name: Upload to releases repo
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -93,8 +93,13 @@ jobs:
           RELEASES_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
         run: |
           git clone https://x-access-token:${RELEASES_TOKEN}@github.com/shenghsi/pomohardo-releases.git releases-repo
-          cp updater.json releases-repo/latest.json
-          cp src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb releases-repo/
+          
+          # Copy updater files (includes .tar.gz and .tar.gz.sig)
+          find src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage -name "*.AppImage.tar.gz*" -exec cp {} releases-repo/ \; 2>/dev/null || true
+          
+          # Copy deb file for direct download
+          find src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb -name "*.deb" -exec cp {} releases-repo/ \; 2>/dev/null || true
+          
           cd releases-repo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
@@ -127,13 +132,13 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: .
           tagName: ${{ github.ref_name }}
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          args: '--bundles msi,nsis'
-          updaterJsonPath: ./updater.json
-          updaterJsonKeepUniversal: true
+          args: '--bundles msi,nsis,updater'
 
       - name: Upload to releases repo
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -142,9 +147,15 @@ jobs:
         shell: bash
         run: |
           git clone https://x-access-token:${RELEASES_TOKEN}@github.com/shenghsi/pomohardo-releases.git releases-repo
-          cp updater.json releases-repo/latest.json
-          cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi releases-repo/ || true
-          cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe releases-repo/ || true
+          
+          # Copy updater files (includes .msi.zip and .msi.zip.sig)
+          find src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi -name "*.msi.zip*" -exec cp {} releases-repo/ \; 2>/dev/null || true
+          find src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis -name "*.nsis.zip*" -exec cp {} releases-repo/ \; 2>/dev/null || true
+          
+          # Copy installers for direct download
+          find src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi -name "*.msi" ! -name "*.zip" -exec cp {} releases-repo/ \; 2>/dev/null || true
+          find src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis -name "*.exe" -exec cp {} releases-repo/ \; 2>/dev/null || true
+          
           cd releases-repo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
@@ -189,13 +200,13 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: .
           tagName: ${{ github.ref_name }}
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          args: ${{ matrix.args }}
-          updaterJsonPath: ./updater.json
-          updaterJsonKeepUniversal: true
+          args: ${{ matrix.args }} --bundles app,dmg,updater
 
       - name: Upload to releases repo
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -203,9 +214,13 @@ jobs:
           RELEASES_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
         run: |
           git clone https://x-access-token:${RELEASES_TOKEN}@github.com/shenghsi/pomohardo-releases.git releases-repo
-          cp updater.json releases-repo/latest.json
-          cp src-tauri/target/${{ matrix.rust_target }}/release/bundle/dmg/*.dmg releases-repo/ || true
-          cp src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos/*.app.tar.gz releases-repo/ || true
+          
+          # Copy updater files (includes .tar.gz and .tar.gz.sig)
+          find src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos -name "*.app.tar.gz*" -exec cp {} releases-repo/ \; 2>/dev/null || true
+          
+          # Copy DMG for direct download
+          find src-tauri/target/${{ matrix.rust_target }}/release/bundle/dmg -name "*.dmg" -exec cp {} releases-repo/ \; 2>/dev/null || true
+          
           cd releases-repo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
@@ -213,3 +228,87 @@ jobs:
           git commit -m "Release ${{ github.ref_name }} - macOS ${{ matrix.rust_target }}" || true
           git push
 
+
+  merge-manifests:
+    needs: [build-linux, build-windows, build-macos]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate latest.json from updater files
+        env:
+          RELEASES_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+        run: |
+          git clone https://x-access-token:${RELEASES_TOKEN}@github.com/shenghsi/pomohardo-releases.git releases-repo
+          cd releases-repo
+          
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          
+          # Create latest.json with all platforms
+          cat > latest.json << EOF
+          {
+            "version": "$VERSION",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+          EOF
+          
+          # Add Linux platform
+          if ls *.AppImage.tar.gz 2>/dev/null; then
+            LINUX_FILE=$(ls *.AppImage.tar.gz | head -n 1)
+            LINUX_SIG=$(cat ${LINUX_FILE}.sig 2>/dev/null || echo "")
+            cat >> latest.json << EOF
+              "linux-x86_64": {
+                "signature": "$LINUX_SIG",
+                "url": "https://shenghsi.github.io/pomohardo-releases/$LINUX_FILE"
+              },
+          EOF
+          fi
+          
+          # Add Windows platform
+          if ls *.msi.zip 2>/dev/null; then
+            WIN_FILE=$(ls *.msi.zip | head -n 1)
+            WIN_SIG=$(cat ${WIN_FILE}.sig 2>/dev/null || echo "")
+            cat >> latest.json << EOF
+              "windows-x86_64": {
+                "signature": "$WIN_SIG",
+                "url": "https://shenghsi.github.io/pomohardo-releases/$WIN_FILE"
+              },
+          EOF
+          elif ls *.nsis.zip 2>/dev/null; then
+            WIN_FILE=$(ls *.nsis.zip | head -n 1)
+            WIN_SIG=$(cat ${WIN_FILE}.sig 2>/dev/null || echo "")
+            cat >> latest.json << EOF
+              "windows-x86_64": {
+                "signature": "$WIN_SIG",
+                "url": "https://shenghsi.github.io/pomohardo-releases/$WIN_FILE"
+              },
+          EOF
+          fi
+          
+          # Add macOS platforms
+          for arch in x86_64 aarch64; do
+            if ls *${arch}*.app.tar.gz 2>/dev/null; then
+              MAC_FILE=$(ls *${arch}*.app.tar.gz | head -n 1)
+              MAC_SIG=$(cat ${MAC_FILE}.sig 2>/dev/null || echo "")
+              DARWIN_ARCH="darwin-${arch}"
+              cat >> latest.json << EOF
+              "$DARWIN_ARCH": {
+                "signature": "$MAC_SIG",
+                "url": "https://shenghsi.github.io/pomohardo-releases/$MAC_FILE"
+              },
+          EOF
+            fi
+          done
+          
+          # Remove trailing comma and close JSON
+          sed -i '$ s/,$//' latest.json
+          cat >> latest.json << EOF
+            }
+          }
+          EOF
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add latest.json
+          git commit -m "Update manifest for ${{ github.ref_name }}" || true
+          git push
