@@ -88,17 +88,16 @@ Full input blocking is supported via low-level hooks/event taps.
 
 When installing the macOS app, you may see a Gatekeeper warning: "Apple could not verify this app is free of malware." This is expected for apps distributed outside the App Store without Developer ID signing.
 
-**To open the app (macOS Sequoia 15+):**
-1. Go to **System Settings → Privacy & Security**
-2. Scroll down to the **Security** section at the bottom
-3. Find the message about "Pomohardo" being blocked
-4. Click **"Open Anyway"**
-5. Confirm by clicking "Open" in the dialog
+**To open the app:**
 
-**Alternative method (if the above doesn't appear):**
-1. Open Terminal
-2. Run: `./scripts/macos-allow-app.sh /path/to/Pomohardo.app` (or manually: `xattr -dr com.apple.quarantine /path/to/Pomohardo.app`)
-3. Then go to System Settings → Privacy & Security and click "Open Anyway"
+1. **Remove quarantine attribute** (recommended first step):
+   - Open Terminal
+   - Run: `xattr -dr com.apple.quarantine /path/to/Pomohardo.app` (or use `./scripts/macos-allow-app.sh`)
+   - Replace `/path/to/Pomohardo.app` with the actual path (e.g., `~/Downloads/Pomohardo.app` or `/Applications/Pomohardo.app`)
+
+2. **Open the app:**
+   - If you see a message in **System Settings → Privacy & Security → Security** section, click **"Open Anyway"** and confirm
+   - If there's no message in Security settings, try opening the app directly - it should work after removing the quarantine attribute
 
 **Note:** The app requires Accessibility permissions for input blocking. You'll be prompted to grant this permission on first use in System Settings → Privacy & Security → Accessibility.
 
