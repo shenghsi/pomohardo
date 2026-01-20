@@ -943,6 +943,34 @@ async function updateStats() {
     document.getElementById('breakDebtStat').textContent = `${debtMinutes} minutes`;
 }
 
+// Check for updates
+async function checkForUpdates() {
+    try {
+        const { check } = await import('@tauri-apps/plugin-updater');
+        const update = await check();
+        
+        if (update?.available) {
+            const shouldUpdate = confirm(
+                `Update available: ${update.version}\n\n` +
+                `Current version: ${update.currentVersion}\n\n` +
+                'Would you like to download and install the update?'
+            );
+            
+            if (shouldUpdate) {
+                console.log('Downloading update...');
+                await update.downloadAndInstall();
+                
+                // Restart the app after update
+                const { relaunch } = await import('@tauri-apps/plugin-process');
+                await relaunch();
+            }
+        }
+    } catch (error) {
+        console.error('Update check failed:', error);
+        // Silently fail - don't bother the user with update errors
+    }
+}
+
 // Initialize
 async function init() {
     // Listen for Tauri events
@@ -983,6 +1011,11 @@ async function init() {
     }
 
     await updateTimerState();
+
+    // Check for updates (main window only)
+    if (!IS_BREAKSHIELD) {
+        checkForUpdates();
+    }
 
     // Update timer every second
     updateInterval = setInterval(async () => {
