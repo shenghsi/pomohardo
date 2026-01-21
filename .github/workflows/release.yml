@@ -94,18 +94,33 @@ jobs:
         run: |
           git clone https://x-access-token:${RELEASES_TOKEN}@github.com/shenghsi/pomohardo-releases.git releases-repo
           
+          echo "=== Listing bundle directories ==="
+          ls -la src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/ || echo "Bundle directory not found"
+          
           # Copy updater files (includes .tar.gz and .tar.gz.sig)
-          find src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage -name "*.AppImage.tar.gz*" -exec cp {} releases-repo/ \; 2>/dev/null || true
+          echo "=== Copying AppImage updater files ==="
+          cp src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage.tar.gz releases-repo/ 2>/dev/null && echo "Copied AppImage tar.gz" || echo "No AppImage tar.gz found"
+          cp src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage.tar.gz.sig releases-repo/ 2>/dev/null && echo "Copied AppImage signature" || echo "No AppImage signature found"
           
           # Copy deb file for direct download
-          find src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb -name "*.deb" -exec cp {} releases-repo/ \; 2>/dev/null || true
+          echo "=== Copying DEB installer ==="
+          cp src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb releases-repo/ 2>/dev/null && echo "Copied DEB installer" || echo "No DEB installer found"
+          
+          echo "=== Files in releases-repo ==="
+          ls -la releases-repo/
           
           cd releases-repo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add .
-          git commit -m "Release ${{ github.ref_name }} - Linux" || true
-          git push
+          
+          if git diff --staged --quiet; then
+            echo "No files to commit"
+          else
+            git commit -m "Release ${{ github.ref_name }} - Linux"
+            git push
+            echo "Successfully pushed Linux release files"
+          fi
 
   build-windows:
     needs: create-release
@@ -148,20 +163,51 @@ jobs:
         run: |
           git clone https://x-access-token:${RELEASES_TOKEN}@github.com/shenghsi/pomohardo-releases.git releases-repo
           
+          echo "=== Listing bundle directories ==="
+          ls -la src-tauri/target/x86_64-pc-windows-msvc/release/bundle/ || echo "Bundle directory not found"
+          
+          echo "=== MSI directory contents ==="
+          ls -la src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/ || echo "MSI directory not found"
+          
+          echo "=== NSIS directory contents ==="
+          ls -la src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/ || echo "NSIS directory not found"
+          
           # Copy updater files (includes .msi.zip and .msi.zip.sig)
-          find src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi -name "*.msi.zip*" -exec cp {} releases-repo/ \; 2>/dev/null || true
-          find src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis -name "*.nsis.zip*" -exec cp {} releases-repo/ \; 2>/dev/null || true
+          echo "=== Copying MSI updater files ==="
+          cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi.zip releases-repo/ 2>/dev/null && echo "Copied MSI zip files" || echo "No MSI zip files found"
+          cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi.zip.sig releases-repo/ 2>/dev/null && echo "Copied MSI signature files" || echo "No MSI signature files found"
+          
+          echo "=== Copying NSIS updater files ==="
+          cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.nsis.zip releases-repo/ 2>/dev/null && echo "Copied NSIS zip files" || echo "No NSIS zip files found"
+          cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.nsis.zip.sig releases-repo/ 2>/dev/null && echo "Copied NSIS signature files" || echo "No NSIS signature files found"
           
           # Copy installers for direct download
-          find src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi -name "*.msi" ! -name "*.zip" -exec cp {} releases-repo/ \; 2>/dev/null || true
-          find src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis -name "*.exe" -exec cp {} releases-repo/ \; 2>/dev/null || true
+          echo "=== Copying MSI installer ==="
+          for file in src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi; do
+            if [ -f "$file" ] && [[ ! "$file" =~ \.zip$ ]]; then
+              cp "$file" releases-repo/
+              echo "Copied: $(basename "$file")"
+            fi
+          done
+          
+          echo "=== Copying NSIS installer ==="
+          cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe releases-repo/ 2>/dev/null && echo "Copied EXE installer" || echo "No EXE installer found"
+          
+          echo "=== Files in releases-repo ==="
+          ls -la releases-repo/
           
           cd releases-repo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add .
-          git commit -m "Release ${{ github.ref_name }} - Windows" || true
-          git push
+          
+          if git diff --staged --quiet; then
+            echo "No files to commit"
+          else
+            git commit -m "Release ${{ github.ref_name }} - Windows"
+            git push
+            echo "Successfully pushed Windows release files"
+          fi
 
   build-macos:
     needs: create-release
@@ -215,18 +261,33 @@ jobs:
         run: |
           git clone https://x-access-token:${RELEASES_TOKEN}@github.com/shenghsi/pomohardo-releases.git releases-repo
           
+          echo "=== Listing bundle directories ==="
+          ls -la src-tauri/target/${{ matrix.rust_target }}/release/bundle/ || echo "Bundle directory not found"
+          
           # Copy updater files (includes .tar.gz and .tar.gz.sig)
-          find src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos -name "*.app.tar.gz*" -exec cp {} releases-repo/ \; 2>/dev/null || true
+          echo "=== Copying macOS updater files ==="
+          cp src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos/*.app.tar.gz releases-repo/ 2>/dev/null && echo "Copied app tar.gz" || echo "No app tar.gz found"
+          cp src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos/*.app.tar.gz.sig releases-repo/ 2>/dev/null && echo "Copied app signature" || echo "No app signature found"
           
           # Copy DMG for direct download
-          find src-tauri/target/${{ matrix.rust_target }}/release/bundle/dmg -name "*.dmg" -exec cp {} releases-repo/ \; 2>/dev/null || true
+          echo "=== Copying DMG installer ==="
+          cp src-tauri/target/${{ matrix.rust_target }}/release/bundle/dmg/*.dmg releases-repo/ 2>/dev/null && echo "Copied DMG installer" || echo "No DMG installer found"
+          
+          echo "=== Files in releases-repo ==="
+          ls -la releases-repo/
           
           cd releases-repo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add .
-          git commit -m "Release ${{ github.ref_name }} - macOS ${{ matrix.rust_target }}" || true
-          git push
+          
+          if git diff --staged --quiet; then
+            echo "No files to commit"
+          else
+            git commit -m "Release ${{ github.ref_name }} - macOS ${{ matrix.rust_target }}"
+            git push
+            echo "Successfully pushed macOS release files"
+          fi
 
 
   merge-manifests:
