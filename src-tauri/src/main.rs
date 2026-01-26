@@ -427,6 +427,11 @@ fn main() {
             std::env::set_var("GDK_BACKEND", "x11");
         }
 
+        // Disable dmabuf renderer to fix "Could not create GBM EGL display" on some systems
+        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+
         // Disable session management integration.
         // This prevents the desktop environment from "saving" the app state on logout and restarting it on login,
         // which leads to duplicate instances (one from autostart, one from session restore).
@@ -644,7 +649,7 @@ fn main() {
                     // Check if we should auto-start after overnight pause
                     if timer.should_auto_start_after_overnight_pause() {
                         timer.auto_start_new_session();
-                        
+
                         // Send notification about auto-start
                         let _ = app_handle
                             .notification()
@@ -652,7 +657,7 @@ fn main() {
                             .title("Pomohardo")
                             .body("Starting a new work session.")
                             .show();
-                        
+
                         // Emit event to update UI
                         app_handle.emit("phase-changed", "work").ok();
                     }
