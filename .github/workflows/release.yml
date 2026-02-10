@@ -85,7 +85,7 @@ jobs:
           projectPath: .
           tagName: ${{ github.ref_name }}
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          args: '--target x86_64-unknown-linux-gnu --bundles deb,updater'
+          args: '--target x86_64-unknown-linux-gnu --bundles deb,rpm,appimage,updater'
 
       - name: Upload to releases repo
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -98,13 +98,21 @@ jobs:
           ls -la src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/ || echo "Bundle directory not found"
           
           # Copy updater files (includes .tar.gz and .tar.gz.sig)
+          # These are generated because we included 'appimage' and 'updater' in bundles
           echo "=== Copying AppImage updater files ==="
           cp src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage.tar.gz releases-repo/ 2>/dev/null && echo "Copied AppImage tar.gz" || echo "No AppImage tar.gz found"
           cp src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage.tar.gz.sig releases-repo/ 2>/dev/null && echo "Copied AppImage signature" || echo "No AppImage signature found"
           
-          # Copy deb file for direct download
+          # Copy executables/installers for direct download
+          echo "=== Copying AppImage executable ==="
+          # The raw .AppImage file (not the .tar.gz updater one)
+          find src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/ -name "*.AppImage" -not -name "*.tar.gz" -exec cp {} releases-repo/ \; 2>/dev/null && echo "Copied AppImage" || echo "No AppImage found"
+          
           echo "=== Copying DEB installer ==="
           cp src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb releases-repo/ 2>/dev/null && echo "Copied DEB installer" || echo "No DEB installer found"
+
+          echo "=== Copying RPM installer ==="
+          cp src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/rpm/*.rpm releases-repo/ 2>/dev/null && echo "Copied RPM installer" || echo "No RPM installer found"
           
           echo "=== Files in releases-repo ==="
           ls -la releases-repo/
