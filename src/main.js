@@ -48,39 +48,39 @@ function initDOMElements() {
 function calculateBreakshieldSizes() {
     const width = window.innerWidth;
     const height = window.innerHeight;
-    
+
     // Base sizes as percentages of screen dimensions
     // Break timer container: 30-40% of screen width, with min/max constraints
     const breakTimerWidth = width * 0.2;
-    
+
     // Break content padding: responsive to screen size
     const breakContentPaddingX = width * 0.04;
     const breakContentPaddingY = height * 0.02;
-    
+
     // Time display font size: scales with screen height
     const timeDisplayFontSize = height * 0.05;
     const timeDisplayMinWidth = width * 0.2;
-    
+
     // Phase label font size: scales with screen height
     const phaseLabelFontSize = height * 0.015;
-    
+
     // Break message font size: scales with screen height
     const breakMessageFontSize = height * 0.015;
-    
+
     // Break time up container: 35-45% of screen width
     const breakTimeUpWidth = width * 0.25;
     const breakTimeUpFontSize = height * 0.018;
-    
+
     // Emergency skip container: same width as break timer
     const emergencySkipWidth = breakTimerWidth;
-    
+
     // Hold progress: same width as break timer
     const holdProgressWidth = breakTimerWidth;
-    
+
     // Confirm word container: same width as break timer
     const confirmWordWidth = breakTimerWidth;
     const confirmWordInputWidth = breakTimerWidth * 0.6;
-    
+
     // Set CSS custom properties
     const root = document.documentElement;
     root.style.setProperty('--break-timer-width', `${breakTimerWidth}px`);
@@ -147,16 +147,16 @@ function createBreakScreen() {
     confirmWordInput = document.getElementById('confirmWordInput');
     confirmSkipBtn = document.getElementById('confirmSkipBtn');
     confirmInstruction = document.getElementById('confirmInstruction');
-    
+
     // Update key combo text for platform
     const emergencyKeyCombo = document.getElementById('emergencyKeyCombo');
     if (emergencyKeyCombo) {
         emergencyKeyCombo.textContent = getEmergencyKeyCombo();
     }
-    
+
     // Calculate and set sizes based on screen dimensions
     calculateBreakshieldSizes();
-    
+
     // Recalculate on window resize
     window.addEventListener('resize', calculateBreakshieldSizes);
 }
@@ -224,7 +224,7 @@ function setupEmergencySkip() {
     let isHolding = false;
     let isArmed = false;  // true once hold is complete and confirm word input is shown
     let confirmTimeout = null;  // timeout for confirm word input
-    
+
     // JavaScript-side key detection for macOS (and fallback for other platforms)
     let keyState = {
         cmd: false,
@@ -234,20 +234,20 @@ function setupEmergencySkip() {
         shift: false,
         e: false
     };
-    
+
     // Global key event listeners to track key state
     const keyDownHandler = (e) => {
         // Prevent default behavior for our emergency combo
         const platform = navigator.platform.toLowerCase();
-        const isEmergencyCombo = platform.includes('mac') 
+        const isEmergencyCombo = platform.includes('mac')
             ? (e.metaKey && e.altKey && e.shiftKey && e.key.toLowerCase() === 'e')
             : (e.ctrlKey && e.altKey && e.shiftKey && e.key.toLowerCase() === 'e');
-            
+
         if (isEmergencyCombo) {
             e.preventDefault();
             e.stopPropagation();
         }
-        
+
         keyState.cmd = e.metaKey;
         keyState.ctrl = e.ctrlKey;
         keyState.alt = e.altKey;
@@ -256,7 +256,7 @@ function setupEmergencySkip() {
         if (e.key.toLowerCase() === 'e') {
             keyState.e = true;
         }
-        
+
         // Debug logging for macOS
         if (platform.includes('mac') && (e.metaKey || e.altKey || e.shiftKey || e.key.toLowerCase() === 'e')) {
             console.log('Key state:', {
@@ -269,7 +269,7 @@ function setupEmergencySkip() {
             });
         }
     };
-    
+
     const keyUpHandler = (e) => {
         keyState.cmd = e.metaKey;
         keyState.ctrl = e.ctrlKey;
@@ -280,15 +280,15 @@ function setupEmergencySkip() {
             keyState.e = false;
         }
     };
-    
+
     // Add global key listeners with capture to catch events before they're blocked
     document.addEventListener('keydown', keyDownHandler, { capture: true, passive: false });
     document.addEventListener('keyup', keyUpHandler, { capture: true, passive: false });
-    
+
     // Also add to window for broader coverage
     window.addEventListener('keydown', keyDownHandler, { capture: true, passive: false });
     window.addEventListener('keyup', keyUpHandler, { capture: true, passive: false });
-    
+
     // Function to check if the correct key combination is pressed
     const isEmergencyChordPressed = () => {
         const platform = navigator.platform.toLowerCase();
@@ -401,12 +401,12 @@ function setupEmergencySkip() {
                     // Fall back to JavaScript detection
                     pressed = isEmergencyChordPressed();
                 }
-                
+
                 // If backend returns false, also try JavaScript as fallback
                 if (!pressed) {
                     pressed = isEmergencyChordPressed();
                 }
-                
+
                 // Debug logging
                 if (pressed) {
                     console.log('Emergency chord detected!');
@@ -558,7 +558,7 @@ function setupEmergencySkip() {
         stopChordPolling();
         hideEmergencySkipUI();
     };
-    
+
     // Cleanup function to remove event listeners
     window.cleanupEmergencySkip = () => {
         document.removeEventListener('keydown', keyDownHandler, { capture: true });
@@ -849,13 +849,13 @@ async function handleBreakTimeUp() {
 
     // Set up one-time listener for any user interaction
     setupBreakCompleteListener();
-    
+
     // Also add a direct click handler to the break overlay as a fallback
     if (breakOverlay) {
         breakOverlay.style.cursor = 'pointer';
         breakOverlay.onclick = () => completeBreakAndDismiss();
     }
-    
+
     console.log('=== Ready for user interaction ===');
 }
 
@@ -887,10 +887,10 @@ function setupBreakCompleteListener() {
 
     const handleInteraction = async (eventType) => {
         console.log(`User interaction detected (${eventType}), completing break...`);
-        
+
         // Remove listeners immediately to prevent multiple calls
         removeBreakCompleteListener();
-        
+
         await completeBreakAndDismiss();
     };
 
@@ -905,7 +905,7 @@ function setupBreakCompleteListener() {
     window.addEventListener('click', clickHandler, { capture: true });
 
     breakCompleteHandlers = { keyHandler, clickHandler };
-    
+
     console.log('Break complete listeners set up successfully');
 }
 
@@ -943,25 +943,83 @@ async function updateStats() {
     document.getElementById('breakDebtStat').textContent = `${debtMinutes} minutes`;
 }
 
+function showUpdateBanner(newVersion) {
+    if (document.getElementById('updateBanner')) return;
+
+    const banner = document.createElement('div');
+    banner.id = 'updateBanner';
+    banner.innerHTML = `
+        <div style="background-color: #fca311; color: #1e1e1e; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+            <div>
+                <strong>Update available (${newVersion})</strong>
+                <div style="font-size: 12px; margin-top: 2px;">Click to download the latest version</div>
+            </div>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        </div>
+    `;
+
+    banner.addEventListener('click', async () => {
+        // Direct link to the .deb file to prevent the "Save Link As..." HTML corruption issue
+        await invoke('open_browser', { url: `https://shenghsi.github.io/pomohardo-releases/Pomohardo_${newVersion}_amd64.deb` });
+    });
+
+    // Insert at the top of the timer content
+    const container = document.querySelector('.timer-container');
+    if (container && container.parentNode) {
+        container.parentNode.insertBefore(banner, container);
+    }
+}
+
+function compareVersions(v1, v2) {
+    const parts1 = v1.split('.').map(Number);
+    const parts2 = v2.split('.').map(Number);
+    for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+        const num1 = parts1[i] || 0;
+        const num2 = parts2[i] || 0;
+        if (num1 > num2) return 1;
+        if (num1 < num2) return -1;
+    }
+    return 0;
+}
+
 // Check for updates
 async function checkForUpdates() {
     try {
+        const isLinux = navigator.platform.toLowerCase().includes('linux');
+
+        if (isLinux) {
+            // Manual check for Linux .deb users since automatic updater struggles with dpkg perms
+            const response = await fetch('https://shenghsi.github.io/pomohardo-releases/latest.json?t=' + Date.now());
+            if (response.ok) {
+                const data = await response.json();
+                const currentInfo = await invoke('get_about_info');
+
+                if (data.version && currentInfo.version) {
+                    if (compareVersions(data.version, currentInfo.version) > 0) {
+                        showUpdateBanner(data.version);
+                    }
+                }
+            }
+            // We don't return here so it can fallback to AppImage updater if it's used.
+            // AppImage users will still get the native auto-updater prompt in addition to the banner.
+        }
+
         const { check } = await import('@tauri-apps/plugin-updater');
         const { relaunch } = await import('@tauri-apps/plugin-process');
-        
+
         const update = await check();
-        
+
         if (update?.available) {
             const shouldUpdate = confirm(
                 `Update available: ${update.version}\n\n` +
                 `Current version: ${update.currentVersion}\n\n` +
                 'Would you like to download and install the update?'
             );
-            
+
             if (shouldUpdate) {
                 console.log('Downloading update...');
                 await update.downloadAndInstall();
-                
+
                 // Restart the app after update
                 await relaunch();
             }

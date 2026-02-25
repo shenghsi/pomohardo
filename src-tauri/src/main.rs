@@ -227,6 +227,32 @@ async fn hide_main_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn open_browser(url: String) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", &url])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 pub const SETTINGS_WINDOW_WIDTH: f64 = 450.0;
 pub const SETTINGS_WINDOW_HEIGHT: f64 = 700.0;
 
@@ -747,6 +773,7 @@ fn main() {
             complete_break,
             get_about_info,
             hide_main_window,
+            open_browser,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
