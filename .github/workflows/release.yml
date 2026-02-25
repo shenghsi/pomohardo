@@ -50,7 +50,7 @@ jobs:
     needs: create-release
     permissions:
       contents: write
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
