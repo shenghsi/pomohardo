@@ -1,6 +1,6 @@
 {
   "name": "pomohardo",
-  "version": "0.12.2",
+  "version": "0.12.3",
   "description": "A cross-platform pomodoro timer that enforces breaks",
   "type": "module",
   "scripts": {
