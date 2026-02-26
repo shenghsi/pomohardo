@@ -253,6 +253,64 @@ async fn open_browser(url: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn check_for_updates_custom(
+    app: tauri::AppHandle,
+) -> Result<Option<serde_json::Value>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    match app.updater() {
+        Ok(updater) => match updater.check().await {
+            Ok(Some(update)) => {
+                let mut obj = serde_json::Map::new();
+                obj.insert("available".to_string(), serde_json::Value::Bool(true));
+                obj.insert(
+                    "version".to_string(),
+                    serde_json::Value::String(update.version.clone()),
+                );
+                Ok(Some(serde_json::Value::Object(obj)))
+            }
+            Ok(None) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        },
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+async fn install_update_custom(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    match app.updater() {
+        Ok(updater) => {
+            match updater.check().await {
+                Ok(Some(update)) => {
+                    update
+                        .download_and_install(
+                            |_chunk_length, _content_length| {
+                                // Downloading chunks
+                            },
+                            || {
+                                // Finished
+                            },
+                        )
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    Ok(())
+                }
+                Ok(None) => Err("No update found".to_string()),
+                Err(e) => Err(e.to_string()),
+            }
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+async fn relaunch_app_custom(app: tauri::AppHandle) {
+    app.restart();
+}
+
 pub const SETTINGS_WINDOW_WIDTH: f64 = 450.0;
 pub const SETTINGS_WINDOW_HEIGHT: f64 = 700.0;
 
@@ -774,6 +832,9 @@ fn main() {
             get_about_info,
             hide_main_window,
             open_browser,
+            check_for_updates_custom,
+            install_update_custom,
+            relaunch_app_custom,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

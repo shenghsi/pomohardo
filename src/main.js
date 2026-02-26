@@ -1004,24 +1004,21 @@ async function checkForUpdates() {
             // AppImage users will still get the native auto-updater prompt in addition to the banner.
         }
 
-        const { check } = await import('@tauri-apps/plugin-updater');
-        const { relaunch } = await import('@tauri-apps/plugin-process');
+        const updateObj = await invoke('check_for_updates_custom');
 
-        const update = await check();
-
-        if (update?.available) {
+        if (updateObj && updateObj.available) {
+            const currentInfo = await invoke('get_about_info');
             const shouldUpdate = confirm(
-                `Update available: ${update.version}\n\n` +
-                `Current version: ${update.currentVersion}\n\n` +
+                `Update available: ${updateObj.version}\n\n` +
+                `Current version: ${currentInfo.version}\n\n` +
                 'Would you like to download and install the update?'
             );
 
             if (shouldUpdate) {
                 console.log('Downloading update...');
-                await update.downloadAndInstall();
-
-                // Restart the app after update
-                await relaunch();
+                await invoke('install_update_custom');
+                console.log('Relaunching app...');
+                await invoke('relaunch_app_custom');
             }
         }
     } catch (error) {

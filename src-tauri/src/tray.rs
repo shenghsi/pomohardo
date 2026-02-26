@@ -218,6 +218,8 @@ pub fn create_tray(
     let show_item = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
     let pause_resume_item = MenuItem::with_id(app, "pause_resume", "Pause", true, None::<&str>)?;
     let prefs_item = MenuItem::with_id(app, "preferences", "Preferences", true, None::<&str>)?;
+    let updates_item =
+        MenuItem::with_id(app, "updates", "Check for Updates...", true, None::<&str>)?;
     let about_item = MenuItem::with_id(app, "about", "About", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
@@ -228,6 +230,7 @@ pub fn create_tray(
             &show_item,
             &pause_resume_item,
             &prefs_item,
+            &updates_item,
             &about_item,
             &quit_item,
         ],
@@ -306,6 +309,17 @@ pub fn create_tray(
                     if let Err(e) = crate::open_settings_window(app) {
                         eprintln!("Failed to open settings window: {}", e);
                     }
+                }
+                "updates" => {
+                    if is_break_active {
+                        eprintln!("Cannot open updates during break - break enforcement is active");
+                        return;
+                    }
+                    if let Err(e) = crate::about::open_about_window(app) {
+                        eprintln!("Failed to open about window: {}", e);
+                    }
+                    // Inform the window to start an update check specifically if it was already open
+                    app.emit("check-updates", ()).ok();
                 }
                 "about" => {
                     if is_break_active {
