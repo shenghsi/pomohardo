@@ -121,19 +121,26 @@ jobs:
           cd releases-repo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add .
           
-          if git diff --staged --quiet; then
-            echo "No files to commit"
-          else
+          for i in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            # Re-copy Linux files on top of latest remote state
+            cp ../src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage.tar.gz . 2>/dev/null || true
+            cp ../src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage.tar.gz.sig . 2>/dev/null || true
+            find ../src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/ -name "*.AppImage" -not -name "*.tar.gz" -exec cp {} . \; 2>/dev/null || true
+            cp ../src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb . 2>/dev/null || true
+            cp ../src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/rpm/*.rpm . 2>/dev/null || true
+            git add .
+            if git diff --staged --quiet; then
+              echo "No files to commit (already present on remote)"
+              break
+            fi
             git commit -m "Release ${{ github.ref_name }} - Linux"
-            for i in 1 2 3 4 5; do
-              git push && break
-              echo "Push failed (attempt $i), retrying after rebase..."
-              git pull --rebase origin main
-            done
-            echo "Successfully pushed Linux release files"
-          fi
+            git push && echo "Successfully pushed Linux release files" && break
+            echo "Push failed (attempt $i), retrying..."
+            sleep $((i * 3))
+          done
 
   build-windows:
     needs: create-release
@@ -212,19 +219,29 @@ jobs:
           cd releases-repo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add .
           
-          if git diff --staged --quiet; then
-            echo "No files to commit"
-          else
+          for i in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            # Re-copy Windows files on top of latest remote state
+            cp ../src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi.zip . 2>/dev/null || true
+            cp ../src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi.zip.sig . 2>/dev/null || true
+            cp ../src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.nsis.zip . 2>/dev/null || true
+            cp ../src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.nsis.zip.sig . 2>/dev/null || true
+            for file in ../src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi; do
+              if [ -f "$file" ] && [[ ! "$file" =~ \.zip$ ]]; then cp "$file" .; fi
+            done 2>/dev/null || true
+            cp ../src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe . 2>/dev/null || true
+            git add .
+            if git diff --staged --quiet; then
+              echo "No files to commit (already present on remote)"
+              break
+            fi
             git commit -m "Release ${{ github.ref_name }} - Windows"
-            for i in 1 2 3 4 5; do
-              git push && break
-              echo "Push failed (attempt $i), retrying after rebase..."
-              git pull --rebase origin main
-            done
-            echo "Successfully pushed Windows release files"
-          fi
+            git push && echo "Successfully pushed Windows release files" && break
+            echo "Push failed (attempt $i), retrying..."
+            sleep $((i * 3))
+          done
 
   build-macos:
     needs: create-release
@@ -296,19 +313,24 @@ jobs:
           cd releases-repo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add .
           
-          if git diff --staged --quiet; then
-            echo "No files to commit"
-          else
+          for i in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            # Re-copy macOS files on top of latest remote state
+            cp ../src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos/*.app.tar.gz . 2>/dev/null || true
+            cp ../src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos/*.app.tar.gz.sig . 2>/dev/null || true
+            cp ../src-tauri/target/${{ matrix.rust_target }}/release/bundle/dmg/*.dmg . 2>/dev/null || true
+            git add .
+            if git diff --staged --quiet; then
+              echo "No files to commit (already present on remote)"
+              break
+            fi
             git commit -m "Release ${{ github.ref_name }} - macOS ${{ matrix.rust_target }}"
-            for i in 1 2 3 4 5; do
-              git push && break
-              echo "Push failed (attempt $i), retrying after rebase..."
-              git pull --rebase origin main
-            done
-            echo "Successfully pushed macOS release files"
-          fi
+            git push && echo "Successfully pushed macOS release files" && break
+            echo "Push failed (attempt $i), retrying..."
+            sleep $((i * 3))
+          done
 
 
   merge-manifests:
