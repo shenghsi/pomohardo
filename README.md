@@ -103,7 +103,7 @@ When installing the macOS app, you may see a Gatekeeper warning: "Apple could no
 
 ## License
 
-GPL-3.0
+AGPL-3.0
 
 ## Inspired By
 
