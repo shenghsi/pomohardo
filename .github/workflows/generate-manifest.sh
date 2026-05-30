@@ -14,7 +14,7 @@ fi
 
 # Get file URL
 FILENAME=$(basename "$FILE_PATH")
-URL="https://shenghsi.github.io/pomohardo-releases/${FILENAME}"
+URL="https://github.com/shenghsi/pomohardo/releases/download/${VERSION}/${FILENAME}"
 
 # Generate JSON
 cat << EOF
