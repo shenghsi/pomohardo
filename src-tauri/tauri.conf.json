@@ -1,6 +1,6 @@
 {
   "productName": "Pomohardo",
-  "version": "0.10.1",
+  "version": "1.0.0",
   "identifier": "com.pomohardo",
   "build": {
     "frontendDist": "../src",
@@ -37,6 +37,9 @@
     ],
     "linux": {
       "deb": {
+        "desktopTemplate": "app.desktop"
+      },
+      "rpm": {
         "desktopTemplate": "app.desktop"
       }
     },

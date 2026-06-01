@@ -1,111 +1,92 @@
 # Pomohardo
 
-A cross-platform pomodoro timer that strictly enforces breaks to encourage healthy work habits.
+A cross-platform pomodoro timer that **enforces** breaks — so you actually take them.
+
+Most pomodoro timers let you skip breaks with a single click. Pomohardo doesn't. When break time arrives, a fullscreen overlay takes over and blocks input until your break is done. Your brain will thank you.
 
 ## Features
 
-- **Strict Break Enforcement**: Uses full-screen overlay + input blocking during breaks
-- **Break Debt System**: Skipped break time is added to your next break
-- **Emergency Skip**: Limited emergency skips per day with friction (hold chord + confirm)
-- **Configurable**: Customize work/break durations, sessions before long break, and more
-- **Cross-platform**: Works on Linux, Windows, and macOS
+- **Strict break enforcement** — fullscreen overlay + input blocking during breaks
+- **Break debt** — skipped time accumulates and is added to your next break
+- **Emergency skip** — limited skips per day, requires hold + confirm (for real emergencies only)
+- **Auto-updates** — new versions install automatically
+- **System tray** — runs quietly in the background
+- **Auto-start** — optionally launch on login
+- **Configurable** — work/break durations, long break interval, and more
+- **Cross-platform** — Linux, Windows, and macOS
+
+## Install
+
+Download the latest release for your platform:
+
+| Platform | File |
+|----------|------|
+| **Windows** | `Pomohardo_x.x.x_x64-setup.exe` |
+| **macOS (Intel)** | `Pomohardo_x.x.x_x64.dmg` |
+| **macOS (Apple Silicon)** | `Pomohardo_x.x.x_aarch64.dmg` |
+| **Linux (Debian/Ubuntu)** | `pomohardo_x.x.x_amd64.deb` |
+| **Linux (Fedora/RHEL)** | `pomohardo-x.x.x-1.x86_64.rpm` |
+
+[Latest release](https://github.com/shenghsi/pomohardo/releases/latest)
+
+### macOS
+
+After installing, remove the quarantine attribute:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Pomohardo.app
+```
+
+The app will also prompt for Accessibility permissions (required for input blocking during breaks).
+
+If macOS blocks the app, go to **System Settings → Privacy & Security** and click **"Open Anyway"**.
 
 ## Build from Source
 
-### Prerequisites
-
-- Node.js and npm
-- Rust and Cargo (installed via rustup)
-
-### Platform-Specific Dependencies
-
-#### Linux (Ubuntu/Debian)
+Prerequisites: [Node.js](https://nodejs.org/), [Rust](https://rustup.rs/)
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y libx11-dev libxtst-dev libxcb1-dev webkit2gtk-4.1-dev \
-  build-essential curl libssl-dev libayatana-appindicator3-dev librsvg2-dev
-```
-
-#### Windows
-
-- Windows SDK
-- Microsoft Visual C++ Build Tools
-
-#### macOS
-
-- Xcode Command Line Tools: `xcode-select --install`
-
-### Installation
-
-```bash
-# Install Node dependencies
+git clone https://github.com/shenghsi/pomohardo.git
+cd pomohardo
 npm install
-
-# Development mode
-npm run dev
-
-# Build for production
 npm run build
 ```
 
+Linux requires additional system packages — see the build guide in [SETUP.md](SETUP.md).
+
 ## Configuration
 
-Configuration is stored in:
+Config file location:
 - **Linux/macOS**: `~/.config/pomohardo/config.toml`
 - **Windows**: `%APPDATA%/pomohardo/config.toml`
 
-Default settings:
-- Work duration: 25 minutes
-- Break duration: 5 minutes
-- Long break duration: 15 minutes
-- Sessions before long break: 4
-- Emergency skips per day: 3
-- Break debt cap: 60 minutes
+| Setting | Default |
+|---------|---------|
+| Work duration | 25 min |
+| Break duration | 5 min |
+| Long break duration | 15 min |
+| Sessions before long break | 4 |
+| Emergency skips per day | 3 |
+| Break debt cap | 60 min |
 
-## Usage
+## How It Works
 
-1. Click play to start a pomodoro session
+1. Start a pomodoro session
 2. Work until the timer ends
-3. Take a break when the overlay appears
-4. In rare emergencies, use the emergency skip (limited per day)
-5. Skipped break time accumulates as "break debt" added to your next break
+3. The overlay appears — take your break
+4. In a real emergency, use the emergency skip (limited per day)
+5. Skipped break time carries over as debt into your next break
 
 ## Platform Notes
 
-### Linux
-
-- **X11**: Full input blocking supported
-- **Wayland**: Overlay only (global input blocking not possible without compositor support)
-
-For best enforcement, use an X11 session.
-
-### Windows/macOS
-
-Full input blocking is supported via low-level hooks/event taps.
-
-#### macOS Installation Note
-
-When installing the macOS app, you may see a Gatekeeper warning: "Apple could not verify this app is free of malware." This is expected for apps distributed outside the App Store without Developer ID signing.
-
-**To open the app:**
-
-1. **Remove quarantine attribute** (recommended first step):
-   - Open Terminal
-   - Run: `xattr -dr com.apple.quarantine /path/to/Pomohardo.app` (or use `./scripts/macos-allow-app.sh`)
-   - Replace `/path/to/Pomohardo.app` with the actual path (e.g., `~/Downloads/Pomohardo.app` or `/Applications/Pomohardo.app`)
-
-2. **Open the app:**
-   - If you see a message in **System Settings → Privacy & Security → Security** section, click **"Open Anyway"** and confirm
-   - If there's no message in Security settings, try opening the app directly - it should work after removing the quarantine attribute
-
-**Note:** The app requires Accessibility permissions for input blocking. You'll be prompted to grant this permission on first use in System Settings → Privacy & Security → Accessibility.
+- **Linux (X11)**: Full input blocking supported
+- **Linux (Wayland)**: Overlay only — compositor support required for input blocking
+- **Windows/macOS**: Full input blocking via low-level hooks/event taps
 
 ## License
 
-AGPL-3.0
+[AGPL-3.0](LICENSE)
 
 ## Inspired By
 
-[GNOME Pomodoro](https://github.com/gnome-pomodoro/gnome-pomodoro) - but with stricter break enforcement.
-
+[GNOME Pomodoro](https://github.com/gnome-pomodoro/gnome-pomodoro) — but with stricter break enforcement.
