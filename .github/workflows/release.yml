@@ -47,11 +47,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-linux:
+  build-linux-deb:
     needs: create-release
     permissions:
       contents: write
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -71,8 +71,7 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev \
             build-essential curl wget file \
             libxdo-dev libssl-dev libayatana-appindicator3-dev \
-            librsvg2-dev libxcb1-dev libx11-dev libxtst-dev \
-            rpm rpm-build
+            librsvg2-dev libxcb1-dev libx11-dev libxtst-dev
 
       - name: Install frontend dependencies
         run: npm install
@@ -87,7 +86,48 @@ jobs:
           projectPath: .
           tagName: ${{ github.ref_name }}
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          args: '--target x86_64-unknown-linux-gnu --bundles deb,rpm,updater'
+          args: '--target x86_64-unknown-linux-gnu --bundles deb,updater'
+
+  build-linux-rpm:
+    needs: create-release
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          dnf install -y curl wget file gcc openssl-devel \
+            webkit2gtk4.1-devel libappindicator-gtk3-devel \
+            librsvg2-devel rpm-build nodejs npm \
+            libxdo-devel libX11-devel libXtst-devel libxcb-devel
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build the app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: .
+          tagName: ${{ github.ref_name }}
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: '--target x86_64-unknown-linux-gnu --bundles rpm'
 
   build-windows:
     needs: create-release
@@ -168,7 +208,7 @@ jobs:
           args: ${{ matrix.args }} --bundles app,dmg,updater
 
   publish-release:
-    needs: [build-linux, build-windows, build-macos]
+    needs: [build-linux-deb, build-linux-rpm, build-windows, build-macos]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
