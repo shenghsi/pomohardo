@@ -121,7 +121,8 @@
                     : 'You have the latest version.';
             } catch (error) {
                 console.error('Failed to check for updates:', error);
-                status.textContent = 'Update check failed. Please try again later.';
+                const detail = error instanceof Error ? error.message : String(error);
+                status.textContent = `Update check failed: ${detail}`;
             } finally {
                 button.disabled = false;
             }
