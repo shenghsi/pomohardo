@@ -21,6 +21,7 @@ const MOVEMENT_LIBRARY = [
     { id: 'calf-raise', name: 'Calf raises', instruction: 'Use a stable chair for balance. Raise your heels slowly. Lower them slowly.', mode: 'standing', panel: '33.333% 100%', duration: 40 },
     { id: 'walk-in-place', name: 'Walk in place', instruction: 'Lift one foot, then the other. Move at a comfortable pace.', mode: 'standing', panel: '66.666% 100%', duration: 40 },
 ];
+const MOVEMENT_HISTORY_KEY = 'pomohardo.movement-history';
 
 // DOM Elements (will be initialized after DOM is ready)
 let tabs, tabContents, timeDisplay, phaseLabel, sessionCount, breakDebt, emergencySkips;
@@ -202,6 +203,31 @@ function getEligibleMovements() {
     return MOVEMENT_LIBRARY.filter((movement) => mode === 'mixed' || movement.mode === mode);
 }
 
+function getMovementHistory() {
+    try {
+        const history = JSON.parse(localStorage.getItem(MOVEMENT_HISTORY_KEY));
+        return Array.isArray(history) ? history : [];
+    } catch {
+        return [];
+    }
+}
+
+function rememberMovements(movements) {
+    const recentIds = movements.map((movement) => movement.id);
+    const history = [...recentIds, ...getMovementHistory().filter((id) => !recentIds.includes(id))];
+    localStorage.setItem(MOVEMENT_HISTORY_KEY, JSON.stringify(history.slice(0, 4)));
+}
+
+function shuffledMovementSequence(movements, count) {
+    const recentIds = new Set(getMovementHistory());
+    const fresh = movements.filter((movement) => !recentIds.has(movement.id));
+    const pool = fresh.length >= count ? fresh : movements;
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    const sequence = shuffled.slice(0, count);
+    rememberMovements(sequence);
+    return sequence;
+}
+
 function formatSeconds(seconds) {
     return `0:${Math.max(0, seconds).toString().padStart(2, '0')}`;
 }
@@ -235,7 +261,7 @@ async function startMovementGuidance() {
     if (movements.length === 0) return;
     const count = isLongBreak ? Math.min(5, movements.length) : Math.min(3, movements.length);
     movementGuidance = {
-        movements: movements.slice(0, count),
+        movements: shuffledMovementSequence(movements, count),
         currentIndex: 0,
         startedAt: Date.now(),
         rejectedIds: new Set(),
@@ -282,10 +308,11 @@ function showAnotherMovement() {
     if (!movementGuidance) return;
     const current = movementGuidance.movements[movementGuidance.currentIndex];
     movementGuidance.rejectedIds.add(current.id);
-    const replacement = getEligibleMovements().find((movement) =>
+    const replacements = getEligibleMovements().filter((movement) =>
         !movementGuidance.movements.some((selected) => selected.id === movement.id) &&
         !movementGuidance.rejectedIds.has(movement.id)
     );
+    const replacement = replacements[Math.floor(Math.random() * replacements.length)];
     if (replacement) {
         movementGuidance.movements[movementGuidance.currentIndex] = replacement;
         renderCurrentMovement();

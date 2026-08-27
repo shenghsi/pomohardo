@@ -451,8 +451,8 @@ body.break-active .tabs {
 /* Movement guidance stays separate from the Break Timer. */
 .movement-guidance {
     position: absolute;
-    top: 12vh;
-    right: 8vw;
+    top: 56%;
+    left: 50%;
     width: min(42vw, 640px);
     min-height: min(64vh, 620px);
     display: grid;
@@ -466,6 +466,7 @@ body.break-active .tabs {
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
     color: #f8fafc;
     text-align: left;
+    transform: translate(-50%, -50%);
 }
 
 .movement-visual {
@@ -584,18 +585,18 @@ body.break-active .tabs {
 
 @media (max-width: 900px) {
     .movement-guidance {
-        top: 38vh;
-        right: 50%;
+        top: 58%;
+        left: 50%;
         width: min(88vw, 620px);
         min-height: 0;
-        transform: translateX(50%);
+        transform: translate(-50%, -50%);
         grid-template-columns: 150px 1fr;
     }
 }
 
 @media (max-width: 560px) {
     .movement-guidance {
-        top: 34vh;
+        top: 62%;
         grid-template-columns: 1fr;
     }
 
