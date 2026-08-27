@@ -269,7 +269,9 @@ jobs:
 
           # macOS
           for arch in x86_64 aarch64; do
-            MAC_FILE=$(echo "$ASSETS" | grep -E "\.app\.tar\.gz$" | grep "$arch" | head -n 1 || true)
+            asset_arch="$arch"
+            [ "$arch" = "x86_64" ] && asset_arch="x64"
+            MAC_FILE=$(echo "$ASSETS" | grep -E "\.app\.tar\.gz$" | grep "$asset_arch" | head -n 1 || true)
             if [ -n "$MAC_FILE" ]; then
               MAC_SIG=$(gh release download "$TAG" --repo "$REPO" --pattern "${MAC_FILE}.sig" --output - 2>/dev/null || echo "")
               [ "$FIRST" = false ] && echo ',' >> latest.json
