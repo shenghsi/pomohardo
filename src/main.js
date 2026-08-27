@@ -8,6 +8,19 @@ let timerState = null;
 let config = null;
 let updateInterval = null;
 let frozenWorkState = null; // Stores last work state to freeze main window during breaks
+let movementGuidance = null;
+let movementGuidanceStarted = false;
+let longBreakEndSoundPlayed = false;
+
+const MOVEMENT_LIBRARY = [
+    { id: 'look-away', name: 'Look away from the screen', instruction: 'Look at something far away. Let your eyes rest.', mode: 'seated', panel: '0 0', duration: 40 },
+    { id: 'chin-tuck', name: 'Chin tuck', instruction: 'Keep your head level. Move your chin straight back. Do not use your hands.', mode: 'seated', panel: '33.333% 0', duration: 40 },
+    { id: 'shoulder-squeeze', name: 'Shoulder-blade squeeze', instruction: 'Sit tall. Gently draw your shoulder blades together.', mode: 'seated', panel: '66.666% 0', duration: 40 },
+    { id: 'wrist-movement', name: 'Gentle wrist movement', instruction: 'Move your wrists slowly. Stay in a comfortable range.', mode: 'seated', panel: '100% 0', duration: 40 },
+    { id: 'seated-back', name: 'Seated back movement', instruction: 'Round your back gently. Then sit tall again. Breathe normally.', mode: 'seated', panel: '0 100%', duration: 40 },
+    { id: 'calf-raise', name: 'Calf raises', instruction: 'Use a stable chair for balance. Raise your heels slowly. Lower them slowly.', mode: 'standing', panel: '33.333% 100%', duration: 40 },
+    { id: 'walk-in-place', name: 'Walk in place', instruction: 'Lift one foot, then the other. Move at a comfortable pace.', mode: 'standing', panel: '66.666% 100%', duration: 40 },
+];
 
 // DOM Elements (will be initialized after DOM is ready)
 let tabs, tabContents, timeDisplay, phaseLabel, sessionCount, breakDebt, emergencySkips;
@@ -109,6 +122,22 @@ function createBreakScreen() {
                     Emergency skip limit reached for today.
                 </p>
             </div>
+            <section class="movement-guidance hidden" id="movementGuidance" aria-live="polite">
+                <div class="movement-visual" id="movementVisual" role="img"></div>
+                <div class="movement-copy">
+                    <div class="movement-kicker" id="movementKicker">Movement</div>
+                    <div class="movement-title" id="movementTitle"></div>
+                    <div class="movement-countdown" id="movementCountdown"></div>
+                    <p class="movement-instruction" id="movementInstruction"></p>
+                    <p class="movement-safety">Move only in a comfortable range. Stop if you feel pain, numbness, or dizziness.</p>
+                    <button class="movement-replace" id="replaceMovementBtn" type="button">Show another movement</button>
+                </div>
+            </section>
+            <section class="walk-mode hidden" id="walkMode" aria-live="polite">
+                <div class="walk-icon" aria-hidden="true">↗</div>
+                <p class="walk-title">Take a short walk</p>
+                <p class="walk-instruction">Move at a comfortable pace. Come back when the timer ends.</p>
+            </section>
             <div class="emergency-skip-container hidden" id="emergencySkipContainer">
                 <p class="emergency-instruction" id="emergencyHoldInstruction">
                     Hold <kbd id="emergencyKeyCombo">Ctrl+Alt+Shift+E</kbd> to arm emergency skip
@@ -147,6 +176,9 @@ function createBreakScreen() {
     confirmWordInput = document.getElementById('confirmWordInput');
     confirmSkipBtn = document.getElementById('confirmSkipBtn');
     confirmInstruction = document.getElementById('confirmInstruction');
+
+    const replaceMovementBtn = document.getElementById('replaceMovementBtn');
+    replaceMovementBtn.addEventListener('click', showAnotherMovement);
     
     // Update key combo text for platform
     const emergencyKeyCombo = document.getElementById('emergencyKeyCombo');
@@ -159,6 +191,138 @@ function createBreakScreen() {
     
     // Recalculate on window resize
     window.addEventListener('resize', calculateBreakshieldSizes);
+}
+
+function isReducedMotion() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function getEligibleMovements() {
+    const mode = config?.movement_mode || 'mixed';
+    return MOVEMENT_LIBRARY.filter((movement) => mode === 'mixed' || movement.mode === mode);
+}
+
+function formatSeconds(seconds) {
+    return `0:${Math.max(0, seconds).toString().padStart(2, '0')}`;
+}
+
+function guidanceEnabledForCurrentBreak() {
+    if (!config?.movement_guidance_enabled) return false;
+    if (timerState?.phase === 'Break') return config.short_break_guidance_enabled;
+    return config.long_break_guidance_mode !== 'off';
+}
+
+async function startMovementGuidance() {
+    if (!IS_BREAKSHIELD || movementGuidanceStarted || !timerState) return;
+    movementGuidanceStarted = true;
+    longBreakEndSoundPlayed = false;
+    try {
+        config = await invoke('get_config');
+    } catch (error) {
+        console.error('Failed to load movement guidance config:', error);
+        config = { movement_guidance_enabled: false };
+    }
+
+    const isLongBreak = timerState.phase === 'LongBreak';
+    const mode = config.long_break_guidance_mode || 'walk';
+    if (!guidanceEnabledForCurrentBreak()) return;
+    if (isLongBreak && mode === 'walk') {
+        showWalkMode();
+        return;
+    }
+
+    const movements = getEligibleMovements();
+    if (movements.length === 0) return;
+    const count = isLongBreak ? Math.min(5, movements.length) : Math.min(3, movements.length);
+    movementGuidance = {
+        movements: movements.slice(0, count),
+        currentIndex: 0,
+        startedAt: Date.now(),
+        rejectedIds: new Set(),
+        longBreakGuidedStart: isLongBreak && mode === 'guided_start',
+    };
+    renderCurrentMovement();
+}
+
+function stopMovementGuidance() {
+    movementGuidance = null;
+    movementGuidanceStarted = false;
+    document.getElementById('movementGuidance')?.classList.add('hidden');
+    document.getElementById('walkMode')?.classList.add('hidden');
+}
+
+function showWalkMode() {
+    document.getElementById('movementGuidance')?.classList.add('hidden');
+    document.getElementById('walkMode')?.classList.remove('hidden');
+}
+
+function renderCurrentMovement() {
+    if (!movementGuidance) return;
+    const movement = movementGuidance.movements[movementGuidance.currentIndex];
+    if (!movement) {
+        if (movementGuidance.longBreakGuidedStart) showWalkMode();
+        else document.getElementById('movementGuidance')?.classList.add('hidden');
+        return;
+    }
+    const guide = document.getElementById('movementGuidance');
+    const visual = document.getElementById('movementVisual');
+    guide?.classList.remove('hidden');
+    document.getElementById('walkMode')?.classList.add('hidden');
+    document.getElementById('movementTitle').textContent = movement.name;
+    document.getElementById('movementInstruction').textContent = movement.instruction;
+    document.getElementById('movementKicker').textContent = `Movement ${movementGuidance.currentIndex + 1} of ${movementGuidance.movements.length}`;
+    visual.style.backgroundPosition = movement.panel;
+    visual.setAttribute('aria-label', `${movement.name}. ${movement.instruction}`);
+    visual.classList.toggle('illustrations-off', !config?.movement_illustrations_enabled);
+    visual.classList.toggle('reduced-motion', isReducedMotion());
+    movementGuidance.startedAt = Date.now();
+}
+
+function showAnotherMovement() {
+    if (!movementGuidance) return;
+    const current = movementGuidance.movements[movementGuidance.currentIndex];
+    movementGuidance.rejectedIds.add(current.id);
+    const replacement = getEligibleMovements().find((movement) =>
+        !movementGuidance.movements.some((selected) => selected.id === movement.id) &&
+        !movementGuidance.rejectedIds.has(movement.id)
+    );
+    if (replacement) {
+        movementGuidance.movements[movementGuidance.currentIndex] = replacement;
+        renderCurrentMovement();
+    }
+}
+
+function updateMovementGuidance() {
+    if (!movementGuidance || !timerState || timerState.status !== 'Running') return;
+    const movement = movementGuidance.movements[movementGuidance.currentIndex];
+    if (!movement) return;
+    const elapsed = Math.floor((Date.now() - movementGuidance.startedAt) / 1000);
+    const remaining = movement.duration - elapsed;
+    document.getElementById('movementCountdown').textContent = formatSeconds(remaining);
+    if (remaining <= 0) {
+        movementGuidance.currentIndex += 1;
+        renderCurrentMovement();
+    }
+}
+
+function playLongBreakEndSound() {
+    if (longBreakEndSoundPlayed || !config?.long_break_end_sound_enabled || timerState?.phase !== 'LongBreak') return;
+    longBreakEndSoundPlayed = true;
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audio = new AudioContext();
+        const oscillator = audio.createOscillator();
+        const gain = audio.createGain();
+        oscillator.connect(gain);
+        gain.connect(audio.destination);
+        oscillator.frequency.value = 660;
+        gain.gain.setValueAtTime(0.05, audio.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.8);
+        oscillator.start();
+        oscillator.stop(audio.currentTime + 0.8);
+    } catch (error) {
+        console.error('Failed to play Long Break end sound:', error);
+    }
 }
 
 // Tab switching
@@ -692,6 +856,8 @@ function updateUI(overrideState) {
                 breakTimer.classList.add('hidden');
             }
             breakTimeUpContainer.classList.remove('hidden');
+            stopMovementGuidance();
+            playLongBreakEndSound();
         } else {
             // Show break timer, hide break time up message
             if (breakTimer) {
@@ -702,6 +868,7 @@ function updateUI(overrideState) {
             const breakSeconds = timerState.remaining_seconds % 60;
             const breakTimeStr = `${breakMinutes}:${breakSeconds.toString().padStart(2, '0')}`;
             breakTimeDisplay.textContent = breakTimeStr;
+            updateMovementGuidance();
         }
 
         let breakPhaseName = timerState.phase === 'Work' ? 'Pomodoro' :
@@ -734,6 +901,7 @@ async function showBreakOverlay() {
 
     document.body.classList.add('break-active');
     breakOverlay.classList.remove('hidden');
+    await startMovementGuidance();
 
     // Make window fullscreen and always-on-top (and focused) BEFORE grabbing input.
     // If we grab first, the webview may not receive the emergency chord.
@@ -789,6 +957,7 @@ async function hideBreakOverlay() {
 
     breakOverlay.classList.add('hidden');
     document.body.classList.remove('break-active');
+    stopMovementGuidance();
 
     // Reset break time up flag
     breakTimeUpHandled = false;
@@ -1053,4 +1222,3 @@ if (document.readyState === 'loading') {
 } else {
     waitForTauri();
 }
-

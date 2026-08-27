@@ -93,6 +93,17 @@
             border-color: #333;
         }
 
+        .setting-group select {
+            width: 100%;
+            font-family: inherit;
+            padding: 8px 10px;
+            background: #2d2d2d;
+            border: 1px solid #444;
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 14px;
+        }
+
         .hint {
             margin-top: 4px;
             font-size: 11px;
@@ -325,6 +336,72 @@
         </div>
     </div>
 
+    <!-- MOVEMENT GUIDANCE SECTION -->
+    <h3>MOVEMENT GUIDANCE</h3>
+    <div class="section-divider"></div>
+
+    <div class="setting-group">
+        <label for="movementGuidance">Show movement guidance in BreakShield</label>
+        <div class="input-wrapper" style="width: auto;">
+            <label class="toggle-switch">
+                <input type="checkbox" id="movementGuidance">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <div class="setting-group">
+        <label for="shortBreakGuidance">Guide Short Breaks</label>
+        <div class="input-wrapper" style="width: auto;">
+            <label class="toggle-switch">
+                <input type="checkbox" id="shortBreakGuidance">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <div class="setting-group">
+        <label for="longBreakGuidance">Long Break guidance</label>
+        <div class="input-wrapper">
+            <select id="longBreakGuidance">
+                <option value="walk">Take a walk</option>
+                <option value="guided_start">Guided start, then walk</option>
+                <option value="off">Off</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="setting-group">
+        <label for="movementMode">Movement mode</label>
+        <div class="input-wrapper">
+            <select id="movementMode">
+                <option value="mixed">Mixed</option>
+                <option value="seated">Seated</option>
+                <option value="standing">Standing</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="setting-group">
+        <label for="movementIllustrations">Show movement illustrations</label>
+        <div class="input-wrapper" style="width: auto;">
+            <label class="toggle-switch">
+                <input type="checkbox" id="movementIllustrations">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <div class="setting-group">
+        <label for="longBreakEndSound">Play Long Break end sound</label>
+        <div class="input-wrapper" style="width: auto;">
+            <label class="toggle-switch">
+                <input type="checkbox" id="longBreakEndSound">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+    </div>
+
     <div class="save-indicator" id="saveIndicator">
         <span>✓</span> Saved
     </div>
@@ -396,6 +473,12 @@
                 lastValidValues['emergencyConfirmTimeout'] = emergencyConfirmTimeout;
                 document.getElementById('autoStart').checked = config.auto_start || false;
                 document.getElementById('notifyBeforeWorkEnd').checked = config.notify_before_work_end || false;
+                document.getElementById('movementGuidance').checked = config.movement_guidance_enabled ?? true;
+                document.getElementById('shortBreakGuidance').checked = config.short_break_guidance_enabled ?? true;
+                document.getElementById('longBreakGuidance').value = config.long_break_guidance_mode || 'walk';
+                document.getElementById('movementMode').value = config.movement_mode || 'mixed';
+                document.getElementById('movementIllustrations').checked = config.movement_illustrations_enabled ?? true;
+                document.getElementById('longBreakEndSound').checked = config.long_break_end_sound_enabled ?? true;
             } catch (error) {
                 console.error('Failed to load config:', error);
             }
@@ -403,7 +486,7 @@
 
         function setupAutoSave() {
             // Get all input elements
-            const inputs = document.querySelectorAll('input');
+            const inputs = document.querySelectorAll('input, select');
 
             inputs.forEach(input => {
                 // Save immediately on change (like macOS preferences)
@@ -505,6 +588,12 @@
                 emergency_confirm_timeout_seconds: parseInt(document.getElementById('emergencyConfirmTimeout').value) || 15,
                 auto_start: document.getElementById('autoStart').checked,
                 notify_before_work_end: document.getElementById('notifyBeforeWorkEnd').checked,
+                movement_guidance_enabled: document.getElementById('movementGuidance').checked,
+                short_break_guidance_enabled: document.getElementById('shortBreakGuidance').checked,
+                long_break_guidance_mode: document.getElementById('longBreakGuidance').value,
+                movement_mode: document.getElementById('movementMode').value,
+                movement_illustrations_enabled: document.getElementById('movementIllustrations').checked,
+                long_break_end_sound_enabled: document.getElementById('longBreakEndSound').checked,
             };
 
             try {

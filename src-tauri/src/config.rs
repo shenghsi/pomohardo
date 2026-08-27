@@ -35,6 +35,18 @@ pub struct Config {
     pub auto_start: bool,
     #[serde(default)]
     pub notify_before_work_end: bool,
+    #[serde(default = "default_movement_guidance_enabled")]
+    pub movement_guidance_enabled: bool,
+    #[serde(default = "default_short_break_guidance_enabled")]
+    pub short_break_guidance_enabled: bool,
+    #[serde(default = "default_long_break_guidance_mode")]
+    pub long_break_guidance_mode: String,
+    #[serde(default = "default_movement_mode")]
+    pub movement_mode: String,
+    #[serde(default = "default_movement_illustrations_enabled")]
+    pub movement_illustrations_enabled: bool,
+    #[serde(default = "default_long_break_end_sound_enabled")]
+    pub long_break_end_sound_enabled: bool,
 }
 
 fn default_emergency_hold_seconds() -> u32 {
@@ -47,6 +59,30 @@ fn default_emergency_confirm_word() -> String {
 
 fn default_emergency_confirm_timeout_seconds() -> u32 {
     15
+}
+
+fn default_movement_guidance_enabled() -> bool {
+    true
+}
+
+fn default_short_break_guidance_enabled() -> bool {
+    true
+}
+
+fn default_long_break_guidance_mode() -> String {
+    "walk".to_string()
+}
+
+fn default_movement_mode() -> String {
+    "mixed".to_string()
+}
+
+fn default_movement_illustrations_enabled() -> bool {
+    true
+}
+
+fn default_long_break_end_sound_enabled() -> bool {
+    true
 }
 
 impl Default for Config {
@@ -63,6 +99,12 @@ impl Default for Config {
             emergency_confirm_timeout_seconds: 15,
             auto_start: false,
             notify_before_work_end: false,
+            movement_guidance_enabled: true,
+            short_break_guidance_enabled: true,
+            long_break_guidance_mode: "walk".to_string(),
+            movement_mode: "mixed".to_string(),
+            movement_illustrations_enabled: true,
+            long_break_end_sound_enabled: true,
         }
     }
 }

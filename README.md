@@ -68,6 +68,9 @@ Config file location:
 | Sessions before long break | 4 |
 | Emergency skips per day | 3 |
 | Break debt cap | 60 min |
+| Movement guidance | On |
+| Long break guidance | Take a walk |
+| Movement mode | Mixed |
 
 ## How It Works
 
