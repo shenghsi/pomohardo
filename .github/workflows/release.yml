@@ -86,7 +86,7 @@ jobs:
           projectPath: .
           tagName: ${{ github.ref_name }}
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          args: '--target x86_64-unknown-linux-gnu --bundles deb,updater'
+          args: '--target x86_64-unknown-linux-gnu --bundles appimage,deb,updater'
 
   build-linux-rpm:
     needs: create-release
@@ -127,7 +127,7 @@ jobs:
           projectPath: .
           tagName: ${{ github.ref_name }}
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          args: '--target x86_64-unknown-linux-gnu --bundles rpm'
+          args: '--target x86_64-unknown-linux-gnu --bundles appimage,rpm,updater'
 
   build-windows:
     needs: create-release

@@ -62,6 +62,23 @@
             margin-top: auto;
             /* margin-bottom: 10px; */
         }
+
+        #checkUpdates {
+            margin-top: 16px;
+            padding: 8px 12px;
+            border: 1px solid #fca311;
+            border-radius: 6px;
+            background: transparent;
+            color: #fca311;
+            cursor: pointer;
+        }
+
+        #updateStatus {
+            min-height: 18px;
+            margin-top: 8px;
+            color: #aaa;
+            font-size: 12px;
+        }
     </style>
 </head>
 
@@ -72,6 +89,8 @@
     <div class="description">
         A cross-platform pomodoro timer that enforces breaks.
     </div>
+    <button id="checkUpdates" type="button">Check for updates</button>
+    <div id="updateStatus" role="status"></div>
     <div class="copyright">Copyright © <span id="year"></span></div>
 
     <script>
@@ -88,6 +107,27 @@
                 document.getElementById('version').textContent = 'Unknown';
             }
         }
+
+        async function checkForUpdates() {
+            const button = document.getElementById('checkUpdates');
+            const status = document.getElementById('updateStatus');
+            button.disabled = true;
+            status.textContent = 'Checking for updates…';
+            try {
+                const { check } = await import('@tauri-apps/plugin-updater');
+                const update = await check();
+                status.textContent = update
+                    ? `Version ${update.version} is available.`
+                    : 'You have the latest version.';
+            } catch (error) {
+                console.error('Failed to check for updates:', error);
+                status.textContent = 'Update check failed. Please try again later.';
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        document.getElementById('checkUpdates').addEventListener('click', checkForUpdates);
 
         // Wait for DOM
         if (document.readyState === 'loading') {
