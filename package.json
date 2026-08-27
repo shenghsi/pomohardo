@@ -1,6 +1,6 @@
 {
   "name": "pomohardo",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "A cross-platform pomodoro timer that enforces breaks",
   "type": "module",
   "scripts": {
@@ -16,9 +16,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
-    "@tauri-apps/plugin-notification": "^2.0.0",
-    "@tauri-apps/plugin-updater": "^2.0.0",
-    "@tauri-apps/plugin-process": "^2.0.0"
+    "@tauri-apps/plugin-notification": "^2.0.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",

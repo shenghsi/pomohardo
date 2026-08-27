@@ -114,8 +114,7 @@
             button.disabled = true;
             status.textContent = 'Checking for updates…';
             try {
-                const { check } = await import('@tauri-apps/plugin-updater');
-                const update = await check();
+                const update = await invoke('check_for_updates_custom');
                 status.textContent = update
                     ? `Version ${update.version} is available.`
                     : 'You have the latest version.';

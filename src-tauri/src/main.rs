@@ -256,6 +256,29 @@ async fn show_settings(app: tauri::AppHandle, _url: String) -> Result<(), String
     open_settings_window(&app)
 }
 
+#[tauri::command]
+async fn check_for_updates_custom(app: tauri::AppHandle) -> Result<Option<serde_json::Value>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    match updater.check().await.map_err(|e| e.to_string())? {
+        Some(update) => Ok(Some(serde_json::json!({ "available": true, "version": update.version }))),
+        None => Ok(None),
+    }
+}
+
+#[tauri::command]
+async fn install_update_custom(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    let update = updater.check().await.map_err(|e| e.to_string())?.ok_or("No update found")?;
+    update.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn relaunch_app_custom(app: tauri::AppHandle) {
+    app.restart();
+}
+
 /// Linux-specific single instance lock using filesystem-based locking.
 ///
 /// This function works alongside `tauri-plugin-single-instance` to provide robust
@@ -443,7 +466,6 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // When a second instance tries to start, bring the existing window to focus
             if let Some(window) = app.get_webview_window("main") {
@@ -742,6 +764,9 @@ fn main() {
             show_settings,
             complete_break,
             get_about_info,
+            check_for_updates_custom,
+            install_update_custom,
+            relaunch_app_custom,
             hide_main_window,
         ])
         .build(tauri::generate_context!())

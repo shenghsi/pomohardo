@@ -1142,24 +1142,20 @@ async function updateStats() {
 // Check for updates
 async function checkForUpdates() {
     try {
-        const { check } = await import('@tauri-apps/plugin-updater');
-        const { relaunch } = await import('@tauri-apps/plugin-process');
-        
-        const update = await check();
+        const update = await invoke('check_for_updates_custom');
         
         if (update?.available) {
+            const currentInfo = await invoke('get_about_info');
             const shouldUpdate = confirm(
                 `Update available: ${update.version}\n\n` +
-                `Current version: ${update.currentVersion}\n\n` +
+                `Current version: ${currentInfo.version}\n\n` +
                 'Would you like to download and install the update?'
             );
             
             if (shouldUpdate) {
                 console.log('Downloading update...');
-                await update.downloadAndInstall();
-                
-                // Restart the app after update
-                await relaunch();
+                await invoke('install_update_custom');
+                await invoke('relaunch_app_custom');
             }
         }
     } catch (error) {
