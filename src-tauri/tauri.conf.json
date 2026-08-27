@@ -1,6 +1,6 @@
 {
   "productName": "Pomohardo",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "identifier": "com.pomohardo",
   "build": {
     "frontendDist": "../src",
@@ -57,7 +57,7 @@
         "https://github.com/shenghsi/pomohardo/releases/latest/download/latest.json"
       ],
       "dialog": true,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ0QzJFN0FGRTA3MkQ5OEIKUldTTDJYTGdyK2ZDUkwxbngrWURkUTl4ZjlzUG16ZmtFenV3UmdmVVdGM05OK1FnQzRLYmNyNDgK"
+      "pubkey": "ZFc1MGNuVnpkR1ZrSUdOdmJXMWxiblE2SUcxcGJtbHphV2R1SUhCMVlteHBZeUJyWlhrNklEVXlSVVF6UmpZM1JrWTRNek15TWpNS1VsZFJhazF2VUM5YWVpOTBWVzFKYTFaMFRERnRhWGMyZEhKRGREaFZhbWxYV0hGa1NuaEhRVzl5Ym1WUmJ6bDNTM2g1WTJGNWRUVUs="
     }
   }
 }
