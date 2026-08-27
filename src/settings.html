@@ -97,11 +97,43 @@
             width: 100%;
             font-family: inherit;
             padding: 8px 10px;
-            background: #2d2d2d;
-            border: 1px solid #444;
+            padding-right: 34px;
+            appearance: none;
+            -webkit-appearance: none;
+            background: #2d2d2d !important;
+            border: 1px solid #555;
             border-radius: 6px;
-            color: #ffffff;
+            color: #ffffff !important;
+            color-scheme: dark;
             font-size: 14px;
+            line-height: 20px;
+            cursor: pointer;
+        }
+
+        .setting-group select:hover {
+            border-color: #777;
+        }
+
+        .setting-group select:focus {
+            outline: none;
+            border-color: #fca311;
+            box-shadow: 0 0 0 2px rgba(252, 163, 17, 0.2);
+        }
+
+        .setting-group select option {
+            background-color: #2d2d2d;
+            color: #ffffff;
+        }
+
+        .input-wrapper:has(select)::after {
+            content: "⌄";
+            position: absolute;
+            top: 50%;
+            right: 12px;
+            transform: translateY(-55%);
+            color: #cbd5e1;
+            font-size: 18px;
+            pointer-events: none;
         }
 
         .hint {
