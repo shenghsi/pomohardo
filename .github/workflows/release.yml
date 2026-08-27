@@ -127,7 +127,7 @@ jobs:
           projectPath: .
           tagName: ${{ github.ref_name }}
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          args: '--target x86_64-unknown-linux-gnu --bundles appimage,rpm,updater'
+          args: '--target x86_64-unknown-linux-gnu --bundles rpm'
 
   build-windows:
     needs: create-release
