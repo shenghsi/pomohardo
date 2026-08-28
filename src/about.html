@@ -95,6 +95,7 @@
 
     <script>
         const { invoke } = window.__TAURI__.core;
+        const { listen } = window.__TAURI__.event;
 
         async function loadInfo() {
             try {
@@ -102,6 +103,7 @@
                 document.getElementById('version').textContent = info.version;
                 document.getElementById('logo').src = info.icon_base64;
                 document.getElementById('year').textContent = new Date().getFullYear();
+                await checkForUpdates();
             } catch (e) {
                 console.error('Failed to load about info:', e);
                 document.getElementById('version').textContent = 'Unknown';
@@ -128,6 +130,7 @@
         }
 
         document.getElementById('checkUpdates').addEventListener('click', checkForUpdates);
+        listen('check-updates', checkForUpdates);
 
         // Wait for DOM
         if (document.readyState === 'loading') {

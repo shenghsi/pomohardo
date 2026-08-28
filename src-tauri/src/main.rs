@@ -168,23 +168,17 @@ async fn complete_break(state: tauri::State<'_, AppState>) -> Result<(), String>
     Ok(())
 }
 
-#[tauri::command]
-async fn show_breakshield(app: tauri::AppHandle, url: String) -> Result<(), String> {
-    // In dev mode, the main window loads from an external devUrl (http://localhost:5173),
-    // so a breakshield window must also load from the same external URL.
-    // In production, `url` will typically be an `app://` URL and will still parse fine.
-
+fn open_breakshield_window(app: &tauri::AppHandle, webview_url: WebviewUrl) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("breakshield") {
-        let _ = w.close();
+        let _ = w.show();
+        let _ = w.set_fullscreen(true);
+        let _ = w.set_always_on_top(true);
+        let _ = w.set_focus();
+        return Ok(());
     }
 
-    let webview_url = match tauri::Url::parse(&url) {
-        Ok(u) => WebviewUrl::External(u),
-        Err(_) => WebviewUrl::App("index.html#breakshield".into()),
-    };
-
     // Fullscreen overlay window. We use a transparent window + a dark scrim in CSS.
-    let w = WebviewWindowBuilder::new(&app, "breakshield", webview_url)
+    let w = WebviewWindowBuilder::new(app, "breakshield", webview_url)
         .title("Pomohardo Break")
         .decorations(false)
         .resizable(false)
@@ -209,6 +203,19 @@ async fn show_breakshield(app: tauri::AppHandle, url: String) -> Result<(), Stri
     }
 
     Ok(())
+}
+
+#[tauri::command]
+async fn show_breakshield(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    // In dev mode, the main window loads from an external devUrl (http://localhost:5173),
+    // so a breakshield window must also load from the same external URL.
+    // In production, `url` will typically be an `app://` URL and will still parse fine.
+    let webview_url = match tauri::Url::parse(&url) {
+        Ok(u) => WebviewUrl::External(u),
+        Err(_) => WebviewUrl::App("index.html#breakshield".into()),
+    };
+
+    open_breakshield_window(&app, webview_url)
 }
 
 #[tauri::command]
@@ -497,6 +504,13 @@ fn main() {
                 // Create custom Quit menu item
                 let quit_item =
                     MenuItem::with_id(app_handle, "quit", "Quit Pomohardo", true, Some("Cmd+Q"))?;
+                let check_updates_item = MenuItem::with_id(
+                    app_handle,
+                    "check_updates",
+                    "Check for Updates…",
+                    true,
+                    None::<&str>,
+                )?;
 
                 // Create app submenu
                 let app_submenu = Submenu::with_items(
@@ -505,6 +519,7 @@ fn main() {
                     true,
                     &[
                         &PredefinedMenuItem::about(app_handle, Some("About Pomohardo"), None)?,
+                        &check_updates_item,
                         &PredefinedMenuItem::separator(app_handle)?,
                         &PredefinedMenuItem::services(app_handle, None)?,
                         &PredefinedMenuItem::separator(app_handle)?,
@@ -551,20 +566,29 @@ fn main() {
                 // Set the menu
                 app.set_menu(menu)?;
 
-                // Handle custom quit menu item
+                // Handle custom application menu items
                 app.on_menu_event(move |app, event| {
-                    if event.id().as_ref() == "quit" {
-                        // Check if breakshield is active
-                        if app.get_webview_window("breakshield").is_some() {
+                    match event.id().as_ref() {
+                        "check_updates" => {
+                            if app.get_webview_window("breakshield").is_none() {
+                                if let Err(error) = about::open_about_window(app) {
+                                    eprintln!("Failed to open about window: {}", error);
+                                }
+                                app.emit("check-updates", ()).ok();
+                            }
+                        }
+                        "quit" if app.get_webview_window("breakshield").is_some() => {
                             // Refocus breakshield
                             if let Some(breakshield) = app.get_webview_window("breakshield") {
                                 let _ = breakshield.set_always_on_top(true);
                                 let _ = breakshield.set_focus();
                             }
-                        } else {
+                        }
+                        "quit" => {
                             // Allow quit when not in break
                             app.exit(0);
                         }
+                        _ => {}
                     }
                 });
             }
@@ -667,7 +691,7 @@ fn main() {
                     // Check if we should auto-start after overnight pause
                     if timer.should_auto_start_after_overnight_pause() {
                         timer.auto_start_new_session();
-                        
+
                         // Send notification about auto-start
                         let _ = app_handle
                             .notification()
@@ -675,7 +699,7 @@ fn main() {
                             .title("Pomohardo")
                             .body("Starting a new work session.")
                             .show();
-                        
+
                         // Emit event to update UI
                         app_handle.emit("phase-changed", "work").ok();
                     }
@@ -721,10 +745,21 @@ fn main() {
                             timer::Phase::LongBreak => "long_break",
                         };
 
+                        let is_break_phase =
+                            matches!(current_phase, timer::Phase::Break | timer::Phase::LongBreak);
+                        if is_break_phase {
+                            if let Err(error) = open_breakshield_window(
+                                &app_handle,
+                                WebviewUrl::App("index.html#breakshield".into()),
+                            ) {
+                                eprintln!("Failed to open BreakShield: {}", error);
+                            }
+                        }
+
                         app_handle.emit("phase-changed", phase_name).ok();
 
                         // Emit break started event
-                        if matches!(current_phase, timer::Phase::Break | timer::Phase::LongBreak) {
+                        if is_break_phase {
                             let break_type = if matches!(current_phase, timer::Phase::LongBreak) {
                                 "Long break"
                             } else {

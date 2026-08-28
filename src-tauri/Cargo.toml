@@ -1,6 +1,6 @@
 [package]
 name = "pomohardo"
-version = "1.2.6"
+version = "1.2.7"
 description = "A cross-platform pomodoro timer that enforces breaks"
 authors = ["shxi"]
 edition = "2021"

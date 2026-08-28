@@ -213,9 +213,13 @@ function getMovementHistory() {
 }
 
 function rememberMovements(movements) {
-    const recentIds = movements.map((movement) => movement.id);
-    const history = [...recentIds, ...getMovementHistory().filter((id) => !recentIds.includes(id))];
-    localStorage.setItem(MOVEMENT_HISTORY_KEY, JSON.stringify(history.slice(0, 4)));
+    try {
+        const recentIds = movements.map((movement) => movement.id);
+        const history = [...recentIds, ...getMovementHistory().filter((id) => !recentIds.includes(id))];
+        localStorage.setItem(MOVEMENT_HISTORY_KEY, JSON.stringify(history.slice(0, 4)));
+    } catch (error) {
+        console.warn('Failed to save movement history:', error);
+    }
 }
 
 function shuffledMovementSequence(movements, count) {
@@ -928,7 +932,6 @@ async function showBreakOverlay() {
 
     document.body.classList.add('break-active');
     breakOverlay.classList.remove('hidden');
-    await startMovementGuidance();
 
     // Make window fullscreen and always-on-top (and focused) BEFORE grabbing input.
     // If we grab first, the webview may not receive the emergency chord.
@@ -974,6 +977,10 @@ async function showBreakOverlay() {
         setupBreakCompleteListener();
     }
 
+    // Movement guidance is optional. It must not delay or stop BreakShield.
+    startMovementGuidance().catch((error) => {
+        console.error('Failed to start movement guidance:', error);
+    });
 }
 
 // Hide break overlay
